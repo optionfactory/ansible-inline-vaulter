@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
+
 use serde_yaml::Value;
+
 use crate::ansible::Ansible;
 
 pub struct Parser {
-    pub ansible: Ansible
+    pub ansible: Ansible,
 }
 
 impl Parser {
-
     pub fn parse(&self, text: &str) {
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(text).unwrap();
         for (key, value) in deserialized_map {
@@ -15,20 +16,24 @@ impl Parser {
             self.parse_aux(&key, value, &mut key_acc);
         }
     }
+
     fn parse_aux(&self, key: &str, value: Value, key_acc: &mut Vec<String>) {
         match value {
             Value::Tagged(tagged) => match tagged.value {
                 Value::String(s) => {
                     key_acc.push(key.to_owned());
-                    let decrypted = self.ansible.decrypt(&s).unwrap();
-                    println!("{}: {}", key_acc.join("."), decrypted)
+                    let flattened_key = key_acc.join(".");
+                    match self.ansible.decrypt(&s) {
+                        Ok(decrypted) => println!("{flattened_key}: {decrypted}"),
+                        Err(err) => println!("Could not decrypt value of {flattened_key}: {err}")
+                    }
                 }
                 _ => self.parse_aux(key, tagged.value, key_acc)
             },
-            Value::Mapping(v) => {
-                for (c, d) in v {
+            Value::Mapping(mapping) => {
+                for (a, b) in mapping {
                     key_acc.push(key.to_owned());
-                    self.parse_aux(c.as_str().unwrap(), d, key_acc)
+                    self.parse_aux(a.as_str().unwrap(), b, key_acc)
                 }
             }
             _ => ()

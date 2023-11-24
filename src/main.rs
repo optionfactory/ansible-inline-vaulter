@@ -18,12 +18,12 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-
     let file = args.secrets_file;
     let content = fs::read_to_string(file).expect("Should have been able to read the file");
-    let trimmed = content.strip_prefix("---").unwrap().trim();
 
     let ansible = Ansible { vault: args.vault_password_file };
     let parser = parser::Parser { ansible };
+    let trimmed = content.strip_prefix("---").map_or(content.as_str(), |stripped| stripped.trim());
+
     parser.parse(trimmed);
 }
