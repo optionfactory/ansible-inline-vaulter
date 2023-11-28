@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use log::error;
 
 use serde_yaml::Value;
 
@@ -25,7 +26,7 @@ impl Parser {
                     let flattened_key = key_acc.join(".");
                     match self.ansible.decrypt(&s) {
                         Ok(decrypted) => println!("{flattened_key}: {decrypted}"),
-                        Err(err) => println!("Could not decrypt value of {flattened_key}: {err}")
+                        Err(err) => error!("Could not decrypt value of {flattened_key}: {err}")
                     }
                 }
                 _ => self.parse_aux(key, tagged.value, key_acc)
