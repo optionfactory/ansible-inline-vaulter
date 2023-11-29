@@ -1,12 +1,13 @@
 use std::process::{Command, Stdio};
+use crate::vault::Vault;
 
 pub struct Ansible {
-    pub vault: String,
+    pub vault: Vault,
 }
 
 impl Ansible {
     pub fn decrypt(&self, s: &String) -> Result<String, String> {
-        let arg_str = format!("--vault-password-file={}", self.vault);
+        let arg_str = format!("--vault-password-file={}", self.vault.get_no_id());
         let args = vec!["decrypt", &arg_str];
         let mut ansible_vault = Command::new("ansible-vault")
             .args(&args)
