@@ -1,6 +1,9 @@
-use std::fs;
+use std::path::PathBuf;
+use std::process::exit;
+use anyhow::Context;
 
 use clap::{arg, Parser};
+use log::error;
 
 use crate::ansible::Ansible;
 use crate::vault::Vault;
@@ -19,18 +22,43 @@ struct Args {
 }
 
 fn main() {
+    let mut log_config;
+    if cfg!(debug_assertions) {
+        log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
+    } else {
+        log_config = std::env::current_exe().unwrap();
+        log_config.pop();
+        log_config = log_config.join("log4rs.yaml");
+    }
+    log4rs::init_file(&log_config, Default::default()).context(format!("Error with {:?}", &log_config)).unwrap();
     let args = Args::parse();
-    let secrets_file = args.secrets_file;
 
     let vault = match args.vault_password_file {
-        Some(file) => Vault::from_path(&file).unwrap(),
-        None => Vault::from_config().unwrap()
+        Some(file) => {
+            match Vault::from_path(&file) {
+                Err(err) => {
+                    error!("Error retrieving vault file(s) from path: {:?}", err);
+                    exit(1);
+                }
+                Ok(vault) => vault
+            }
+        }
+        None => {
+            match Vault::from_config() {
+                Err(err) => {
+                    error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
+                    exit(1);
+                }
+                Ok(vault) => vault
+            }
+        }
     };
 
     let ansible = Ansible { vault };
     let parser = parser::Parser { ansible };
-    let content = fs::read_to_string(secrets_file).expect("Should have been able to read the file");
-    let trimmed = content.strip_prefix("---").map_or(content.as_str(), |stripped| stripped.trim());
 
-    parser.parse(trimmed);
+    if let Err(err) = parser.parse(&args.secrets_file) {
+        error!("Error parsing secrets' file: {:?}", err);
+        exit(1);
+    }
 }
