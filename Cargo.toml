@@ -14,3 +14,4 @@ toml = "0.8.8"
 anyhow = "1.0.75"
 log = "0.4.20"
 regex = { version = "1.10.2", features = [] }
+log4rs = "1.2.0"
