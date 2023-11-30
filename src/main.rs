@@ -5,11 +5,12 @@ use anyhow::Context;
 use clap::{arg, Parser};
 use log::error;
 
-use crate::ansible::Ansible;
+use crate::decrypt::AnsibleDecrypt;
+use crate::collector::SecretsCollector;
 use crate::vault::Vault;
 
-mod ansible;
-mod parser;
+mod decrypt;
+mod collector;
 mod vault;
 
 #[derive(Parser, Debug)]
@@ -54,11 +55,18 @@ fn main() {
         }
     };
 
-    let ansible = Ansible { vault };
-    let parser = parser::Parser { ansible };
+    let decrypt = Box::new(AnsibleDecrypt::new(vault));
+    let collector = SecretsCollector::new(decrypt);
 
-    if let Err(err) = parser.parse(&args.secrets_file) {
-        error!("Error parsing secrets' file: {:?}", err);
-        exit(1);
+    match collector.collect(&args.secrets_file) {
+        Err(err) => {
+            error!("Error parsing secrets' file: {:?}", err);
+            exit(1);
+        }
+        Ok(res) => {
+            for (k,v) in res {
+                println!("{k}: {v}");
+            }
+        }
     }
 }
