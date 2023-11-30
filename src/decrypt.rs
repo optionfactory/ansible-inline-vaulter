@@ -1,12 +1,27 @@
 use std::process::{Command, Stdio};
 use crate::vault::Vault;
 
-pub struct Ansible {
-    pub vault: Vault,
+use anyhow::{anyhow, Result};
+
+pub struct AnsibleDecrypt {
+    vault: Vault,
 }
 
-impl Ansible {
-    pub fn decrypt(&self, s: &String) -> Result<String, String> {
+pub trait Decrypt {
+    fn decrypt(&self, s: &str) -> Result<String>;
+}
+
+impl AnsibleDecrypt {
+    pub fn new(vault: Vault) -> Self {
+        AnsibleDecrypt {
+            vault
+        }
+    }
+}
+
+impl Decrypt for AnsibleDecrypt {
+
+    fn decrypt(&self, s: &str) -> Result<String> {
         let arg_str = format!("--vault-password-file={}", self.vault.get_no_id());
         let args = vec!["decrypt", &arg_str];
         let mut ansible_vault = Command::new("ansible-vault")
@@ -26,7 +41,7 @@ impl Ansible {
             .expect("Internal error, failed to wait on child");
         match output.status.code() {
             Some(0) => Ok(format!("{}", String::from_utf8_lossy(&output.stdout))),
-            Some(code) => Err(format!("Error {code} decrypting: {}", String::from_utf8_lossy(&output.stdout))),
+            Some(code) => Err(anyhow!("Error {code} decrypting: {}", String::from_utf8_lossy(&output.stdout))),
             None => Ok(String::from("No exit code"))
         }
     }
