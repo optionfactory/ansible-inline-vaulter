@@ -95,7 +95,9 @@ fn main() {
                 exit(1);
             }
             Ok(res) => {
-                println!("File: {file:?}");
+                if res.len() != 0 {
+                    println!("---{}---", file.display());
+                }
                 for (k, v) in res {
                     println!("{k}: {v}");
                 }
@@ -113,6 +115,13 @@ fn find_inventory_path(name: &str) -> Option<PathBuf> {
 }
 
 fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
-    let files = fs::read_dir(path).unwrap();
-    files.into_iter().map(|p| p.unwrap().path()).collect()
+    let read_dir = fs::read_dir(path).unwrap();
+    let files: Vec<PathBuf> = read_dir.into_iter().map(|p| p.unwrap().path()).collect();
+    let mut not_dirs: Vec<PathBuf> = files.clone().into_iter().filter(|f| !f.is_dir()).collect();
+
+    for file in files.into_iter().filter(|f| f.is_dir()) {
+        not_dirs.append(&mut find_group_vars_files(&file))
+    }
+
+    not_dirs
 }
