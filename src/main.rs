@@ -1,12 +1,14 @@
 use std::path::PathBuf;
 use std::process::exit;
+
 use anyhow::Context;
-
 use clap::{arg, Parser};
-use log::error;
+use log::{error, LevelFilter};
+use log4rs::append::console::ConsoleAppender;
+use log4rs::config::{Appender, Config, Logger, Root};
 
-use crate::decrypt::AnsibleDecrypt;
 use crate::collector::SecretsCollector;
+use crate::decrypt::AnsibleDecrypt;
 use crate::vault::Vault;
 
 mod decrypt;
@@ -22,16 +24,23 @@ struct Args {
     vault_password_file: Option<String>,
 }
 
+fn release_config() -> Config {
+    let stdout = ConsoleAppender::builder().build();
+    Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .logger(Logger::builder().build("ansible-inline-vault-viewer", LevelFilter::Info))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        .unwrap()
+}
+
 fn main() {
-    let mut log_config;
     if cfg!(debug_assertions) {
-        log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
+        let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
+        log4rs::init_file(&log_config, Default::default()).context(format!("Error with {:?}", &log_config)).unwrap();
     } else {
-        log_config = std::env::current_exe().unwrap();
-        log_config.pop();
-        log_config = log_config.join("log4rs.yaml");
+        log4rs::init_config(release_config()).unwrap();
     }
-    log4rs::init_file(&log_config, Default::default()).context(format!("Error with {:?}", &log_config)).unwrap();
+
     let args = Args::parse();
 
     let vault = match args.vault_password_file {
@@ -64,7 +73,7 @@ fn main() {
             exit(1);
         }
         Ok(res) => {
-            for (k,v) in res {
+            for (k, v) in res {
                 println!("{k}: {v}");
             }
         }
