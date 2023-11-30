@@ -7,7 +7,7 @@ use log::{info, warn};
 use regex::Regex;
 
 pub struct Vault {
-    no_id: String,
+    no_id: Option<String>,
     ids: HashMap<String, String>,
 }
 
@@ -23,7 +23,7 @@ impl Vault {
         }
 
         Ok(Vault {
-            no_id: vault_file.unwrap_or(String::from("")),
+            no_id: vault_file,
             ids: vault_ids.unwrap_or(Default::default()),
         })
     }
@@ -33,19 +33,18 @@ impl Vault {
             return Err(anyhow!("File {} does not exist", path));
         }
         Ok(Vault {
-            no_id: path.to_owned(),
+            no_id: Some(path.to_owned()),
             ids: Default::default(),
         })
     }
 
-    pub fn get_no_id(&self) -> &str {
-        &self.no_id
+    pub fn get_no_id(&self) -> Option<&str> {
+        self.no_id.as_ref().map(|no_id| no_id.as_str())
     }
 
     pub fn get_id(&self, id: &str) -> Option<&str> {
         self.ids.get(id).map(|s| s.as_str())
     }
-
 }
 
 fn retrieve_cfg(base_path: &Path) -> Result<String> {
@@ -95,6 +94,7 @@ fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
     use crate::vault::{parse_ids, parse_no_id};
 
     #[test]

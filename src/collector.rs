@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use log::{error, warn};
+use regex::Regex;
 use serde_yaml::Value;
 
 use crate::decrypt::Decrypt;
@@ -38,7 +39,14 @@ impl SecretsCollector {
                         match tagged.value.clone() {
                             Value::String(s) => {
                                 let flattened_key = new_key.join(".");
-                                match self.decrypt.decrypt(&s.trim()) {
+                                let id = extract_vault_id(&s);
+                                let res = if id.is_some() {
+                                    self.decrypt.decrypt_with_id(&s.trim(), id.unwrap().as_ref())
+                                } else {
+                                    self.decrypt.decrypt_no_id(&s.trim())
+                                };
+
+                                match res {
                                     Ok(decrypted) => {
                                         let mut new_acc: BTreeMap<String, String> = acc.into_iter().collect();
                                         new_acc.insert(flattened_key, decrypted);
@@ -68,33 +76,57 @@ impl SecretsCollector {
     }
 }
 
+fn extract_vault_id(value: &str) -> Option<String> {
+    let regex: Regex = Regex::new(r"\$ANSIBLE_VAULT;.+;(?<id>.*?)\n").unwrap(); //TODO make static since it repeats
+    let capture = regex.captures(value)?.name("id").map(|m| m.as_str())?;
+    if capture.trim().is_empty() {
+        return None;
+    }
+    Some(capture.to_owned())
+}
+
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
+    
     use anyhow::{anyhow, Result};
     use serde_yaml::Value;
-
-    use crate::decrypt::Decrypt;
+    
+    use crate::collector::extract_vault_id;
     use crate::collector::SecretsCollector;
+    use crate::decrypt::Decrypt;
 
     struct MockDecrypt {}
 
     impl Decrypt for MockDecrypt {
-        fn decrypt(&self, s: &str) -> Result<String> {
+        fn decrypt_with_id(&self, s: &str, _: &str) -> Result<String> {
+            Ok(s.to_owned())
+        }
+
+        fn decrypt_no_id(&self, s: &str) -> Result<String> {
             Ok(s.to_owned())
         }
     }
 
     struct FailUnlessSuccessDecrypt {}
+
     impl Decrypt for FailUnlessSuccessDecrypt {
-        fn decrypt(&self, s: &str) -> Result<String> {
-            if s.eq("success") {
-                return Ok(s.to_owned())
-            }
-            Err(anyhow!("I was born to fail"))
+        fn decrypt_with_id(&self, s: &str, _: &str) -> Result<String> {
+            choose(s)
         }
+
+        fn decrypt_no_id(&self, s: &str) -> Result<String> {
+            choose(s)
+        }
+    }
+
+    fn choose(s: &str) -> Result<String> {
+        if s.eq("success") {
+            return Ok(s.to_owned());
+        }
+        Err(anyhow!("I was born to fail"))
     }
 
     #[test]
@@ -159,5 +191,34 @@ key1:
         let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
 
         assert_eq!(exp, act)
+    }
+
+    #[test]
+    fn test_empty_tag_value() {
+        let parser = SecretsCollector::new(Box::new(MockDecrypt {}));
+        let config = r#"
+---
+key1: !tag11 |
+
+
+"#;
+        let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(config).unwrap();
+        let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
+
+
+        assert_eq!(BTreeMap::from([(String::from("key1"), String::from(""))]), act)
+    }
+
+    #[test]
+    fn test_match_vault_id() {
+        let value = r#"
+---
+!vault |
+$ANSIBLE_VAULT;1.2;AES256;myID
+123
+
+"#;
+        let act = extract_vault_id(value).unwrap();
+        assert_eq!("myID", act);
     }
 }
