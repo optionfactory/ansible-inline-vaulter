@@ -8,3 +8,4 @@ Piccolo tool per poter vedere i secrets vaultati _inline_ all'interno di un file
   - ~~Solo vault_password_file~~
 - Andare a prendersi il file giusto in base al vault id nel campo da decrittare
 - In alternativa al file con i secrets, poter specificare l'inventory
+  - Atm considera solo group_vars
