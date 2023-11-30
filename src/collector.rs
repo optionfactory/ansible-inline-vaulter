@@ -200,7 +200,6 @@ key1:
 ---
 key1: !tag11 |
 
-
 "#;
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(config).unwrap();
         let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
@@ -212,11 +211,8 @@ key1: !tag11 |
     #[test]
     fn test_match_vault_id() {
         let value = r#"
----
-!vault |
 $ANSIBLE_VAULT;1.2;AES256;myID
 123
-
 "#;
         let act = extract_vault_id(value).unwrap();
         assert_eq!("myID", act);
