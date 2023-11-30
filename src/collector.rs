@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::path::{PathBuf};
 
 use anyhow::Result;
 use log::{error, warn};
@@ -18,8 +19,8 @@ impl SecretsCollector {
         }
     }
 
-    pub fn collect(&self, text: &str) -> Result<BTreeMap<String, String>> {
-        let content = fs::read_to_string(text)?;
+    pub fn collect(&self, file: &PathBuf) -> Result<BTreeMap<String, String>> {
+        let content = fs::read_to_string(file)?;
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(&content)?;
         Ok(self.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new()))
     }
