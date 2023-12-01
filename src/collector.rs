@@ -15,18 +15,25 @@ pub struct SecretsCollector {
 
 impl SecretsCollector {
     pub fn new(decrypt: Box<dyn Decrypt>) -> Self {
-        SecretsCollector {
-            decrypt
-        }
+        SecretsCollector { decrypt }
     }
 
     pub fn collect(&self, file: &PathBuf) -> Result<BTreeMap<String, String>> {
         let content = fs::read_to_string(file)?;
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(&content)?;
-        Ok(self.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new()))
+        Ok(self.collect_aux(
+            deserialized_map.into_iter().collect(),
+            vec![],
+            BTreeMap::new(),
+        ))
     }
 
-    fn collect_aux(&self, pairs: Vec<(String, Value)>, key: Vec<String>, acc: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    fn collect_aux(
+        &self,
+        pairs: Vec<(String, Value)>,
+        key: Vec<String>,
+        acc: BTreeMap<String, String>,
+    ) -> BTreeMap<String, String> {
         match pairs[..] {
             [] => acc,
             _ => {
@@ -35,41 +42,44 @@ impl SecretsCollector {
                 let mut new_key = Vec::from(key.clone());
                 new_key.push(head.0.to_owned());
                 match &head.1 {
-                    Value::Tagged(tagged) => {
-                        match tagged.value.clone() {
-                            Value::String(s) => {
-                                let flattened_key = new_key.join(".");
-                                let id = extract_vault_id(&s);
-                                let res = if id.is_some() {
-                                    self.decrypt.decrypt_with_id(&s.trim(), id.unwrap().as_ref())
-                                } else {
-                                    self.decrypt.decrypt_no_id(&s.trim())
-                                };
+                    Value::Tagged(tagged) => match tagged.value.clone() {
+                        Value::String(s) => {
+                            let flattened_key = new_key.join(".");
+                            let id = extract_vault_id(&s);
+                            let res = if id.is_some() {
+                                self.decrypt
+                                    .decrypt_with_id(&s.trim(), id.unwrap().as_ref())
+                            } else {
+                                self.decrypt.decrypt_no_id(&s.trim())
+                            };
 
-                                match res {
-                                    Ok(decrypted) => {
-                                        let mut new_acc: BTreeMap<String, String> = acc.into_iter().collect();
-                                        new_acc.insert(flattened_key, decrypted);
-                                        new_acc
-                                    }
-                                    Err(err) => {
-                                        error!("Could not decrypt value of {new_key:?}: {err}");
-                                        self.collect_aux(Vec::from(tail), key, acc)
-                                    }
+                            match res {
+                                Ok(decrypted) => {
+                                    let mut new_acc: BTreeMap<String, String> =
+                                        acc.into_iter().collect();
+                                    new_acc.insert(flattened_key, decrypted);
+                                    new_acc
+                                }
+                                Err(err) => {
+                                    error!("Could not decrypt value of {new_key:?}: {err}");
+                                    self.collect_aux(Vec::from(tail), key, acc)
                                 }
                             }
-                            _ => {
-                                warn!("Tagged value of {new_key:?} is not a string, ignoring");
-                                self.collect_aux(Vec::from(tail), key, acc)
-                            }
                         }
-                    }
+                        _ => {
+                            warn!("Tagged value of {new_key:?} is not a string, ignoring");
+                            self.collect_aux(Vec::from(tail), key, acc)
+                        }
+                    },
                     Value::Mapping(mapping) => {
-                        let sub_pairs: Vec<(String, Value)> = mapping.into_iter().map(|(a, b)| (a.as_str().unwrap().to_owned(), b.clone())).collect();
+                        let sub_pairs: Vec<(String, Value)> = mapping
+                            .into_iter()
+                            .map(|(a, b)| (a.as_str().unwrap().to_owned(), b.clone()))
+                            .collect();
                         let map = self.collect_aux(sub_pairs, new_key, acc);
                         return self.collect_aux(Vec::from(tail), key, map);
                     }
-                    _ => self.collect_aux(Vec::from(tail), key, acc)
+                    _ => self.collect_aux(Vec::from(tail), key, acc),
                 }
             }
         }
@@ -85,15 +95,13 @@ fn extract_vault_id(value: &str) -> Option<String> {
     Some(capture.to_owned())
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    
     use anyhow::{anyhow, Result};
     use serde_yaml::Value;
-    
+
     use crate::collector::extract_vault_id;
     use crate::collector::SecretsCollector;
     use crate::decrypt::Decrypt;
@@ -149,7 +157,11 @@ key2: !tag2 |
         ]);
 
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(config).unwrap();
-        let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
+        let act = parser.collect_aux(
+            deserialized_map.into_iter().collect(),
+            vec![],
+            BTreeMap::new(),
+        );
 
         assert_eq!(exp, act)
     }
@@ -168,7 +180,11 @@ key2:
 "#;
 
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(config).unwrap();
-        let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
+        let act = parser.collect_aux(
+            deserialized_map.into_iter().collect(),
+            vec![],
+            BTreeMap::new(),
+        );
 
         assert!(act.is_empty())
     }
@@ -184,11 +200,13 @@ key1:
   key12: !tag12 |
         success
 "#;
-        let exp = BTreeMap::from([
-            (String::from("key1.key12"), String::from("success")),
-        ]);
+        let exp = BTreeMap::from([(String::from("key1.key12"), String::from("success"))]);
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(config).unwrap();
-        let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
+        let act = parser.collect_aux(
+            deserialized_map.into_iter().collect(),
+            vec![],
+            BTreeMap::new(),
+        );
 
         assert_eq!(exp, act)
     }
@@ -202,10 +220,16 @@ key1: !tag11 |
 
 "#;
         let deserialized_map: BTreeMap<String, Value> = serde_yaml::from_str(config).unwrap();
-        let act = parser.collect_aux(deserialized_map.into_iter().collect(), vec![], BTreeMap::new());
+        let act = parser.collect_aux(
+            deserialized_map.into_iter().collect(),
+            vec![],
+            BTreeMap::new(),
+        );
 
-
-        assert_eq!(BTreeMap::from([(String::from("key1"), String::from(""))]), act)
+        assert_eq!(
+            BTreeMap::from([(String::from("key1"), String::from(""))]),
+            act
+        )
     }
 
     #[test]

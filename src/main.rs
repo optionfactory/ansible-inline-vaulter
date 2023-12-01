@@ -12,8 +12,8 @@ use crate::collector::SecretsCollector;
 use crate::decrypt::AnsibleDecrypt;
 use crate::vault::Vault;
 
-mod decrypt;
 mod collector;
+mod decrypt;
 mod vault;
 
 #[derive(Parser, Debug)]
@@ -39,7 +39,9 @@ fn release_config() -> Config {
 fn main() {
     if cfg!(debug_assertions) {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
-        log4rs::init_file(&log_config, Default::default()).context(format!("Error with {:?}", &log_config)).unwrap();
+        log4rs::init_file(&log_config, Default::default())
+            .context(format!("Error with {:?}", &log_config))
+            .unwrap();
     } else {
         log4rs::init_config(release_config()).unwrap();
     }
@@ -52,24 +54,20 @@ fn main() {
     }
 
     let vault = match args.vault_password_file {
-        Some(file) => {
-            match Vault::from_path(&file) {
-                Err(err) => {
-                    error!("Error retrieving vault file(s) from path: {:?}", err);
-                    exit(1);
-                }
-                Ok(vault) => vault
+        Some(file) => match Vault::from_path(&file) {
+            Err(err) => {
+                error!("Error retrieving vault file(s) from path: {:?}", err);
+                exit(1);
             }
-        }
-        None => {
-            match Vault::from_config() {
-                Err(err) => {
-                    error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
-                    exit(1);
-                }
-                Ok(vault) => vault
+            Ok(vault) => vault,
+        },
+        None => match Vault::from_config() {
+            Err(err) => {
+                error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
+                exit(1);
             }
-        }
+            Ok(vault) => vault,
+        },
     };
 
     let decrypt = Box::new(AnsibleDecrypt::new(vault));
@@ -77,15 +75,13 @@ fn main() {
 
     let files = match args.inventory {
         Some(inventory) => match find_inventory_path(inventory.as_str()) {
-            Some(path) => {
-                find_group_vars_files(&path)
-            }
+            Some(path) => find_group_vars_files(&path),
             None => {
                 error!("Could not find inventory");
                 exit(1);
             }
         },
-        None => vec!(PathBuf::from(&args.secrets_file.unwrap()))
+        None => vec![PathBuf::from(&args.secrets_file.unwrap())],
     };
 
     for file in files {
@@ -110,8 +106,9 @@ fn find_inventory_path(name: &str) -> Option<PathBuf> {
     vec![
         PathBuf::from(format!("ansible/inventories/{}/group_vars", name)),
         PathBuf::from(format!("inventories/{}/group_vars", name)),
-    ].into_iter()
-        .find(|p| Path::exists(p))
+    ]
+    .into_iter()
+    .find(|p| Path::exists(p))
 }
 
 fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
