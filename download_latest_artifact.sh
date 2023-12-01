@@ -14,7 +14,7 @@ curl -L --output $file_name \
   -H "Accept: application/vnd.github+json" \
   -H "Authorization: Bearer $token" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
-  $download_url  
+  "$download_url"
 
 unzip -o $file_name
 chmod +x $file_name

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
@@ -7,30 +7,39 @@ use log::{info, warn};
 use regex::Regex;
 
 pub struct Vault {
-    no_id: Option<String>,
-    ids: HashMap<String, String>,
+    no_id: Option<PathBuf>,
+    ids: HashMap<String, PathBuf>,
 }
 
 impl Vault {
     pub fn from_config() -> Result<Self> {
         let base_dir = env::current_dir()?;
         let cfg = retrieve_cfg(&base_dir)?;
-        let vault_file = parse_no_id(&cfg);
-        let vault_ids = parse_ids(&cfg);
 
-        if vault_file.is_none() && vault_ids.is_none() {
-            return Err(anyhow!("Could not find any vault file in config"));
+        let vault_file = parse_no_id(&cfg)
+            .map(PathBuf::from)
+            .filter(|p| Path::exists(p));
+
+        let vault_ids: HashMap<String, PathBuf> = parse_ids(&cfg)
+            .iter()
+            .flat_map(|m| m.iter())
+            .map(|(k, v)| (k, shellexpand::tilde(v).to_string()))
+            .map(|(k, v)| (k.clone(), PathBuf::from(v)))
+            .filter(|(_, v)| Path::exists(v))
+            .collect();
+        if vault_file.is_none() && vault_ids.is_empty() {
+            return Err(anyhow!("Could not find any existing vault file in config"));
         }
 
         Ok(Vault {
             no_id: vault_file,
-            ids: vault_ids.unwrap_or_default(),
+            ids: vault_ids,
         })
     }
 
-    pub fn from_path(path: &str) -> Result<Self> {
-        if !Path::exists(Path::new(path)) {
-            return Err(anyhow!("File {} does not exist", path));
+    pub fn from_path(path: &Path) -> Result<Self> {
+        if !Path::exists(path) {
+            return Err(anyhow!("File {} does not exist", path.display()));
         }
         Ok(Vault {
             no_id: Some(path.to_owned()),
@@ -38,12 +47,12 @@ impl Vault {
         })
     }
 
-    pub fn get_no_id(&self) -> Option<&str> {
+    pub fn get_no_id(&self) -> Option<&Path> {
         self.no_id.as_deref()
     }
 
-    pub fn get_id(&self, id: &str) -> Option<&str> {
-        self.ids.get(id).map(|s| s.as_str())
+    pub fn get_id(&self, id: &str) -> Option<&Path> {
+        self.ids.get(id).map(|s| s.as_path())
     }
 }
 
