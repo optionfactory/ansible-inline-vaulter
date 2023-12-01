@@ -91,7 +91,7 @@ fn main() {
                 exit(1);
             }
             Ok(res) => {
-                if res.len() != 0 {
+                if res.is_empty() {
                     println!("---{}---", file.display());
                 }
                 for (k, v) in res {

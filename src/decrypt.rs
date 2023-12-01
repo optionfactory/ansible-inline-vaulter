@@ -49,7 +49,7 @@ fn do_decrypt(s: &str, vault: &str) -> Result<String> {
         .unwrap();
 
     let _echo = Command::new("echo")
-        .arg(&s)
+        .arg(s)
         .stdout(ansible_vault.stdin.take().unwrap())
         .spawn()
         .unwrap();

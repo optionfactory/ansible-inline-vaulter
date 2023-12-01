@@ -24,7 +24,7 @@ impl Vault {
 
         Ok(Vault {
             no_id: vault_file,
-            ids: vault_ids.unwrap_or(Default::default()),
+            ids: vault_ids.unwrap_or_default(),
         })
     }
 
@@ -39,7 +39,7 @@ impl Vault {
     }
 
     pub fn get_no_id(&self) -> Option<&str> {
-        self.no_id.as_ref().map(|no_id| no_id.as_str())
+        self.no_id.as_deref()
     }
 
     pub fn get_id(&self, id: &str) -> Option<&str> {
@@ -89,11 +89,11 @@ fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
     }
 
     maybe_list
-        .map(|s| s.split(",").collect::<Vec<&str>>())
+        .map(|s| s.split(',').collect::<Vec<&str>>())
         .map(|v| {
             v.iter()
                 .map(|&s| {
-                    let (label, path) = s.split_once("@").unwrap();
+                    let (label, path) = s.split_once('@').unwrap();
                     (label.to_owned(), path.to_owned())
                 })
                 .collect()
