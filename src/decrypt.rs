@@ -1,4 +1,5 @@
 use crate::vault::Vault;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anyhow::{anyhow, Result};
@@ -38,8 +39,8 @@ impl Decrypt for AnsibleDecrypt {
     }
 }
 
-fn do_decrypt(s: &str, vault: &str) -> Result<String> {
-    let arg_str = format!("--vault-password-file={}", vault);
+fn do_decrypt(s: &str, vault: &Path) -> Result<String> {
+    let arg_str = format!("--vault-password-file={}", vault.display());
     let args = vec!["decrypt", &arg_str];
     let mut ansible_vault = Command::new("ansible-vault")
         .args(&args)

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use log::{error, warn};
 use regex::Regex;
+use serde::Deserializer;
 use serde_yaml::Value;
 
 use crate::decrypt::Decrypt;
@@ -31,7 +32,7 @@ impl SecretsCollector {
     fn collect_aux(
         &self,
         pairs: Vec<(String, Value)>,
-        key: Vec<String>,
+        key_acc: Vec<String>,
         acc: BTreeMap<String, String>,
     ) -> BTreeMap<String, String> {
         match pairs[..] {
@@ -39,7 +40,7 @@ impl SecretsCollector {
             _ => {
                 let head = pairs.first().unwrap();
                 let tail = pairs.split_at(1).1;
-                let mut new_key = key.clone();
+                let mut new_key = key_acc.clone();
                 new_key.push(head.0.to_owned());
                 match &head.1 {
                     Value::Tagged(tagged) => match tagged.value.clone() {
@@ -47,8 +48,7 @@ impl SecretsCollector {
                             let flattened_key = new_key.join(".");
                             let maybe_id = extract_vault_id(&s);
                             let res = if let Some(id) = maybe_id {
-                                self.decrypt
-                                    .decrypt_with_id(s.trim(), id.as_ref())
+                                self.decrypt.decrypt_with_id(s.trim(), id.as_ref())
                             } else {
                                 self.decrypt.decrypt_no_id(s.trim())
                             };
@@ -62,13 +62,13 @@ impl SecretsCollector {
                                 }
                                 Err(err) => {
                                     error!("Could not decrypt value of {new_key:?}: {err}");
-                                    self.collect_aux(Vec::from(tail), key, acc)
+                                    self.collect_aux(Vec::from(tail), key_acc, acc)
                                 }
                             }
                         }
                         _ => {
                             warn!("Tagged value of {new_key:?} is not a string, ignoring");
-                            self.collect_aux(Vec::from(tail), key, acc)
+                            self.collect_aux(Vec::from(tail), key_acc, acc)
                         }
                     },
                     Value::Mapping(mapping) => {
@@ -77,9 +77,9 @@ impl SecretsCollector {
                             .map(|(a, b)| (a.as_str().unwrap().to_owned(), b.clone()))
                             .collect();
                         let map = self.collect_aux(sub_pairs, new_key, acc);
-                        self.collect_aux(Vec::from(tail), key, map)
+                        self.collect_aux(Vec::from(tail), key_acc, map)
                     }
-                    _ => self.collect_aux(Vec::from(tail), key, acc),
+                    _ => self.collect_aux(Vec::from(tail), key_acc, acc),
                 }
             }
         }

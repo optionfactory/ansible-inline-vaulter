@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use anyhow::Context;
-use clap::{arg, Parser};
+use clap::{arg, Parser, Subcommand};
 use log::{error, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
@@ -19,15 +19,51 @@ mod vault;
 #[derive(Parser, Debug)]
 /// Shows a flattened list of decrypted inline secrets
 struct Args {
-    #[arg(short, long)]
-    secrets_file: Option<String>,
-    #[arg(short, long)]
-    vault_password_file: Option<String>,
-    #[arg(short, long)]
-    inventory: Option<String>,
+    #[command(subcommand)]
+    command: Commands,
 }
 
-fn release_config() -> Config {
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Project {
+        /// Decrypt all inline secrets of all files into <inventory_name>/group_vars/ and subfolders
+        #[arg(short, long)]
+        inventory_name: String,
+        /// Either the directory containing an Ansible directory, or the one containing ansible.cfg and inventories/
+        #[arg(short, long)]
+        root_dir: PathBuf,
+    },
+    Single {
+        /// The file with the inline secrets to decrypt
+        #[arg(short, long)]
+        secrets_file: PathBuf,
+        /// The vault file to use
+        #[arg(short, long)]
+        vault_password_file: PathBuf,
+    },
+}
+
+fn main() {
+    #[cfg(debug_assertions)]
+    {
+        let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
+        log4rs::init_file(&log_config, Default::default())
+            .context(format!("Error with {:?}", &log_config))
+            .unwrap();
+    }
+    #[cfg(not(debug_assertions))]
+    log4rs::init_config(release_log_config()).unwrap();
+
+
+    let args = Args::parse();
+
+    let (secrets_files, vault) = resolve_files(args);
+    let decrypt = Box::new(AnsibleDecrypt::new(vault));
+    let collector = SecretsCollector::new(decrypt);
+    collect_secrets_and_print(secrets_files, collector);
+}
+
+fn release_log_config() -> Config {
     let stdout = ConsoleAppender::builder().build();
     Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
@@ -36,68 +72,41 @@ fn release_config() -> Config {
         .unwrap()
 }
 
-fn main() {
-    if cfg!(debug_assertions) {
-        let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
-        log4rs::init_file(&log_config, Default::default())
-            .context(format!("Error with {:?}", &log_config))
-            .unwrap();
-    } else {
-        log4rs::init_config(release_config()).unwrap();
-    }
-
-    let args = Args::parse();
-
-    if args.secrets_file.is_none() && args.inventory.is_none() {
-        error!("Specify either the file path or the name of the inventory");
-        exit(2)
-    }
-
-    let vault = match args.vault_password_file {
-        Some(file) => match Vault::from_path(&file) {
-            Err(err) => {
-                error!("Error retrieving vault file(s) from path: {:?}", err);
-                exit(1);
-            }
-            Ok(vault) => vault,
-        },
-        None => match Vault::from_config() {
-            Err(err) => {
-                error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
-                exit(1);
-            }
-            Ok(vault) => vault,
-        },
-    };
-
-    let decrypt = Box::new(AnsibleDecrypt::new(vault));
-    let collector = SecretsCollector::new(decrypt);
-
-    let files = match args.inventory {
-        Some(inventory) => match find_inventory_path(inventory.as_str()) {
-            Some(path) => find_group_vars_files(&path),
-            None => {
-                error!("Could not find inventory");
-                exit(1);
-            }
-        },
-        None => vec![PathBuf::from(&args.secrets_file.unwrap())],
-    };
-
-    for file in files {
-        match collector.collect(&file) {
-            Err(err) => {
-                error!("Error parsing secrets' file: {:?}", err);
-                exit(1);
-            }
-            Ok(res) => {
-                if res.is_empty() {
-                    println!("---{}---", file.display());
+fn resolve_files(args: Args) -> (Vec<PathBuf>, Vault) {
+    match args.command {
+        Commands::Project {
+            inventory_name,
+            root_dir: _root_dir,
+        } => {
+            let vault = match Vault::from_config() {
+                Err(err) => {
+                    error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
+                    exit(1);
                 }
-                for (k, v) in res {
-                    println!("{k}: {v}");
+                Ok(vault) => vault,
+            };
+            let files = match find_inventory_path(&inventory_name) {
+                Some(path) => find_group_vars_files(&path),
+                None => {
+                    error!("Could not find inventory");
+                    exit(1);
                 }
-            }
+            };
+            (files, vault)
+        }
+        Commands::Single {
+            secrets_file,
+            vault_password_file,
+        } => {
+            let vault = match Vault::from_path(&vault_password_file) {
+                Err(err) => {
+                    error!("Error retrieving vault file(s) from path: {:?}", err);
+                    exit(1);
+                }
+                Ok(vault) => vault,
+            };
+            let files = vec![secrets_file];
+            (files, vault)
         }
     }
 }
@@ -121,4 +130,23 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     }
 
     not_dirs
+}
+
+fn collect_secrets_and_print(files: Vec<PathBuf>, collector: SecretsCollector) {
+    for file in files {
+        match collector.collect(&file) {
+            Err(err) => {
+                error!("Error parsing secrets' file: {:?}", err);
+                exit(1);
+            }
+            Ok(res) => {
+                if res.is_empty() {
+                    println!("---{}---", file.display());
+                }
+                for (k, v) in res {
+                    println!("{k}: {v}");
+                }
+            }
+        }
+    }
 }
