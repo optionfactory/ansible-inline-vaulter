@@ -1,6 +1,6 @@
-use std::{env, fs};
 use std::collections::HashMap;
 use std::path::Path;
+use std::{env, fs};
 
 use anyhow::{anyhow, Result};
 use log::{info, warn};
@@ -48,7 +48,7 @@ impl Vault {
 }
 
 fn retrieve_cfg(base_path: &Path) -> Result<String> {
-    vec!("ansible.cfg", "ansible/ansible.cfg")
+    vec!["ansible.cfg", "ansible/ansible.cfg"]
         .into_iter()
         .map(|f| base_path.join(f))
         .find(|p| Path::exists(p))
@@ -63,7 +63,10 @@ fn parse_no_id(cfg: &str) -> Option<String> {
         info!("Could not find 'vault_password_file' in config");
         return None;
     }
-    let maybe_file = maybe_captures.unwrap().name("file").map(|m| m.as_str().to_owned());
+    let maybe_file = maybe_captures
+        .unwrap()
+        .name("file")
+        .map(|m| m.as_str().to_owned());
     if maybe_file.is_none() {
         warn!("No match for 'vault_password_file' value");
     }
@@ -77,18 +80,24 @@ fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
         info!("Could not find 'vault_identity_list' in config");
         return None;
     }
-    let maybe_list = maybe_captures.unwrap().name("file_list").map(|m| m.as_str());
+    let maybe_list = maybe_captures
+        .unwrap()
+        .name("file_list")
+        .map(|m| m.as_str());
     if maybe_list.is_none() {
         warn!("No match for 'vault_identity_list' value");
     }
 
     maybe_list
         .map(|s| s.split(",").collect::<Vec<&str>>())
-        .map(|v| v.iter()
-            .map(|&s| {
-                let (label, path) = s.split_once("@").unwrap();
-                (label.to_owned(), path.to_owned())
-            }).collect())
+        .map(|v| {
+            v.iter()
+                .map(|&s| {
+                    let (label, path) = s.split_once("@").unwrap();
+                    (label.to_owned(), path.to_owned())
+                })
+                .collect()
+        })
 }
 
 #[cfg(test)]
@@ -141,7 +150,7 @@ vault_identity_list = asd@~/.vault/asd,qwerty@~/.vault/qwerty
 "#;
         let exp = HashMap::from([
             (String::from("asd"), String::from("~/.vault/asd")),
-            (String::from("qwerty"), String::from("~/.vault/qwerty"))
+            (String::from("qwerty"), String::from("~/.vault/qwerty")),
         ]);
 
         let act = parse_ids(cfg);
@@ -164,5 +173,3 @@ retries = 2
         assert!(act.is_none())
     }
 }
-
-
