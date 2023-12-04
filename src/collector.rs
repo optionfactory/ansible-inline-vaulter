@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
+use lazy_static::lazy_static;
 use log::warn;
 use regex::Regex;
 use serde_yaml::value::TaggedValue;
@@ -88,9 +89,12 @@ impl SecretsCollector {
     }
 }
 
+lazy_static! {
+    static ref ID_REG: Regex = Regex::new(r"\$ANSIBLE_VAULT;.+;(?<id>.*?)\n").unwrap();
+}
+
 fn extract_vault_id(value: &str) -> Option<String> {
-    let regex: Regex = Regex::new(r"\$ANSIBLE_VAULT;.+;(?<id>.*?)\n").unwrap(); //TODO make static since it repeats
-    let capture = regex.captures(value)?.name("id").map(|m| m.as_str())?;
+    let capture = ID_REG.captures(value)?.name("id").map(|m| m.as_str())?;
     if capture.trim().is_empty() {
         return None;
     }
