@@ -132,7 +132,7 @@ fn collect_secrets_and_print(files: Vec<PathBuf>, collector: SecretsCollector) {
                 if !res.is_empty() {
                     println!("---{}---", file.display());
                 }
-                for (k, v) in res {
+                for (k, v) in res.iter().rev() {
                     println!("{k}: {v}");
                 }
             }
