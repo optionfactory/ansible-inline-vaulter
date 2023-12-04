@@ -1,8 +1,8 @@
+use anyhow::Context;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
 use log::{error, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
@@ -29,9 +29,9 @@ enum Commands {
         /// Decrypt all inline secrets of all files into <inventory_name>/group_vars/ and subfolders
         #[arg(short, long)]
         inventory_name: String,
-        /// Either the directory containing an Ansible directory, or the one containing ansible.cfg and inventories/
+        /// Directory containing Ansible files (e.g. ansible.cfg, inventories/)
         #[arg(short, long)]
-        root_dir: PathBuf,
+        base_dir: PathBuf,
     },
     Single {
         /// The file with the inline secrets to decrypt
@@ -54,7 +54,6 @@ fn main() {
     #[cfg(not(debug_assertions))]
     log4rs::init_config(release_log_config()).unwrap();
 
-
     let args = Args::parse();
 
     let (secrets_files, vault) = resolve_files(args);
@@ -76,23 +75,22 @@ fn resolve_files(args: Args) -> (Vec<PathBuf>, Vault) {
     match args.command {
         Commands::Project {
             inventory_name,
-            root_dir: _root_dir,
+            base_dir,
         } => {
-            let vault = match Vault::from_config() {
+            let vault = match Vault::from_config(&base_dir) {
                 Err(err) => {
                     error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
                     exit(1);
                 }
                 Ok(vault) => vault,
             };
-            let files = match find_inventory_path(&inventory_name) {
-                Some(path) => find_group_vars_files(&path),
-                None => {
-                    error!("Could not find inventory");
-                    exit(1);
-                }
-            };
-            (files, vault)
+
+            let inventory = base_dir.join(format!("inventories/{}/group_vars", inventory_name));
+            if !Path::exists(&inventory) {
+                error!("Could not find {}", inventory.display());
+                exit(1);
+            }
+            (find_group_vars_files(&inventory), vault)
         }
         Commands::Single {
             secrets_file,
@@ -109,15 +107,6 @@ fn resolve_files(args: Args) -> (Vec<PathBuf>, Vault) {
             (files, vault)
         }
     }
-}
-
-fn find_inventory_path(name: &str) -> Option<PathBuf> {
-    vec![
-        PathBuf::from(format!("ansible/inventories/{}/group_vars", name)),
-        PathBuf::from(format!("inventories/{}/group_vars", name)),
-    ]
-    .into_iter()
-    .find(|p| Path::exists(p))
 }
 
 fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {

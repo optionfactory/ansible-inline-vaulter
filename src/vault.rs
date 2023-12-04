@@ -1,6 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 
 use anyhow::{anyhow, Result};
 use log::{info, warn};
@@ -12,9 +12,8 @@ pub struct Vault {
 }
 
 impl Vault {
-    pub fn from_config() -> Result<Self> {
-        let base_dir = env::current_dir()?;
-        let cfg = retrieve_cfg(&base_dir)?;
+    pub fn from_config(base_dir: &Path) -> Result<Self> {
+        let cfg = retrieve_cfg(base_dir)?;
 
         let vault_file = parse_no_id(&cfg)
             .map(PathBuf::from)
@@ -57,12 +56,11 @@ impl Vault {
 }
 
 fn retrieve_cfg(base_path: &Path) -> Result<String> {
-    vec!["ansible.cfg", "ansible/ansible.cfg"]
-        .into_iter()
-        .map(|f| base_path.join(f))
-        .find(|p| Path::exists(p))
-        .map(|p| fs::read_to_string(p).unwrap())
-        .ok_or_else(|| anyhow!("Could not find ansible.cfg"))
+    let cfg = base_path.join("ansible.cfg");
+    if !Path::exists(&cfg) {
+        return Err(anyhow!("Could not find {}", cfg.display()));
+    }
+    Ok(fs::read_to_string(cfg)?)
 }
 
 fn parse_no_id(cfg: &str) -> Option<String> {

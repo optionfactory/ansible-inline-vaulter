@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use anyhow::Result;
 use log::{error, warn};
 use regex::Regex;
-use serde::Deserializer;
 use serde_yaml::Value;
 
 use crate::decrypt::Decrypt;
