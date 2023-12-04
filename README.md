@@ -8,9 +8,4 @@ Il token è fine-grained per permettere solo l'accesso readonly alle actions di 
 
 ## Todo
 
-- Potergli passare il path di progetto così uno se lo mette in bin e non ci pensa più
-- ~~Vault come argomento opzionale, se non c'è si sgrufola nell'ansible.cfg~~
-  - ~~Solo vault_password_file~~
-- ~~Andare a prendersi il file giusto in base al vault id nel campo da decrittare~~
-- In alternativa al file con i secrets, poter specificare l'inventory
-  - Atm considera solo group_vars
+- Forse c'è un mondo fuori da group_vars
