@@ -1,9 +1,8 @@
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
-use anyhow::Context;
 
+use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
 use log::{error, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
@@ -45,15 +44,15 @@ enum Commands {
 }
 
 fn main() {
-    #[cfg(debug_assertions)]
+    if cfg!(debug_assertions)
     {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
         log4rs::init_file(&log_config, Default::default())
             .context(format!("Error with {:?}", &log_config))
             .unwrap();
+    } else {
+        log4rs::init_config(release_log_config()).unwrap();
     }
-    #[cfg(not(debug_assertions))]
-    log4rs::init_config(release_log_config()).unwrap();
 
     let args = Args::parse();
 
