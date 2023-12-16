@@ -2,6 +2,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use anyhow::Context;
 
 use clap::{arg, Parser, Subcommand};
 use log::{error, LevelFilter};
