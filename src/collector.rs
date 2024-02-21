@@ -90,7 +90,7 @@ impl SecretsCollector {
 }
 
 lazy_static! {
-    static ref ID_REG: Regex = Regex::new(r"\$ANSIBLE_VAULT;.+;(?<id>.*?)\n").unwrap();
+    static ref ID_REG: Regex = Regex::new(r"\$ANSIBLE_VAULT;.+;.+;(?<id>.*?)\n").unwrap();
 }
 
 fn extract_vault_id(value: &str) -> Option<String> {
