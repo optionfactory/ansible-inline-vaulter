@@ -16,6 +16,7 @@ impl Vault {
         let cfg = retrieve_cfg(base_dir)?;
 
         let vault_file = parse_no_id(&cfg)
+            .map(|v| shellexpand::tilde(&v).to_string())
             .map(PathBuf::from)
             .filter(|p| Path::exists(p));
 
