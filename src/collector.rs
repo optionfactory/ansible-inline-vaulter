@@ -6,8 +6,8 @@ use anyhow::{anyhow, Context, Result};
 use lazy_static::lazy_static;
 use log::warn;
 use regex::Regex;
-use serde_yaml::value::TaggedValue;
 use serde_yaml::Value;
+use serde_yaml::value::TaggedValue;
 
 use crate::decrypt::Decrypt;
 
