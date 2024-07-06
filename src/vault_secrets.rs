@@ -6,12 +6,12 @@ use anyhow::{anyhow, Result};
 use log::{info, warn};
 use regex::Regex;
 
-pub struct Vault {
+pub struct VaultSecrets {
     no_id: Option<PathBuf>,
     ids: HashMap<String, PathBuf>,
 }
 
-impl Vault {
+impl VaultSecrets {
     pub fn from_config(base_dir: &Path) -> Result<Self> {
         let cfg = retrieve_cfg(base_dir)?;
 
@@ -31,7 +31,7 @@ impl Vault {
             return Err(anyhow!("Could not find any existing vault file in config"));
         }
 
-        Ok(Vault {
+        Ok(VaultSecrets {
             no_id: vault_file,
             ids: vault_ids,
         })
@@ -41,7 +41,7 @@ impl Vault {
         if !Path::exists(path) {
             return Err(anyhow!("File {} does not exist", path.display()));
         }
-        Ok(Vault {
+        Ok(VaultSecrets {
             no_id: Some(path.to_owned()),
             ids: Default::default(),
         })
@@ -112,7 +112,7 @@ fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::vault::{parse_ids, parse_no_id};
+    use crate::vault_secrets::{parse_ids, parse_no_id};
 
     #[test]
     fn test_no_id_parse() {

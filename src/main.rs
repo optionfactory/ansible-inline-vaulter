@@ -9,12 +9,12 @@ use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
 
 use crate::collector::SecretsCollector;
-use crate::decrypt::AnsibleDecrypt;
-use crate::vault::Vault;
+use crate::decrypt::VaultDecrypt;
+use crate::vault_secrets::VaultSecrets;
 
 mod collector;
 mod decrypt;
-mod vault;
+mod vault_secrets;
 
 #[derive(Parser, Debug)]
 /// Shows a flattened list of decrypted inline secrets
@@ -57,7 +57,7 @@ fn main() {
     let args = Args::parse();
 
     let (secrets_files, vault) = resolve_files(args);
-    let decrypt = Box::new(AnsibleDecrypt::new(vault));
+    let decrypt = Box::new(VaultDecrypt::new(vault));
     let collector = SecretsCollector::new(decrypt);
     collect_secrets_and_print(secrets_files, collector);
 }
@@ -71,13 +71,13 @@ fn release_log_config() -> Config {
         .unwrap()
 }
 
-fn resolve_files(args: Args) -> (Vec<PathBuf>, Vault) {
+fn resolve_files(args: Args) -> (Vec<PathBuf>, VaultSecrets) {
     match args.command {
         Commands::Project {
             inventory_name,
             base_dir,
         } => {
-            let vault = match Vault::from_config(&base_dir) {
+            let vault = match VaultSecrets::from_config(&base_dir) {
                 Err(err) => {
                     error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
                     exit(1);
@@ -96,7 +96,7 @@ fn resolve_files(args: Args) -> (Vec<PathBuf>, Vault) {
             secrets_file,
             vault_password_file,
         } => {
-            let vault = match Vault::from_path(&vault_password_file) {
+            let vault = match VaultSecrets::from_path(&vault_password_file) {
                 Err(err) => {
                     error!("Error retrieving vault file(s) from path: {:?}", err);
                     exit(1);

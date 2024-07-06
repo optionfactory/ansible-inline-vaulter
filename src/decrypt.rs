@@ -1,11 +1,13 @@
-use crate::vault::Vault;
+use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
+use ansible_vault::{decrypt_vault};
 use anyhow::{anyhow, Result};
 
-pub struct AnsibleDecrypt {
-    vault: Vault,
+use crate::vault_secrets::VaultSecrets;
+
+pub struct VaultDecrypt {
+    vault: VaultSecrets,
 }
 
 pub trait Decrypt {
@@ -13,13 +15,13 @@ pub trait Decrypt {
     fn decrypt_no_id(&self, s: &str) -> Result<String>;
 }
 
-impl AnsibleDecrypt {
-    pub fn new(vault: Vault) -> Self {
-        AnsibleDecrypt { vault }
+impl VaultDecrypt {
+    pub fn new(vault: VaultSecrets) -> Self {
+        VaultDecrypt { vault }
     }
 }
 
-impl Decrypt for AnsibleDecrypt {
+impl Decrypt for VaultDecrypt {
     fn decrypt_with_id(&self, s: &str, id: &str) -> Result<String> {
         do_decrypt(
             s,
@@ -39,31 +41,23 @@ impl Decrypt for AnsibleDecrypt {
     }
 }
 
-fn do_decrypt(s: &str, vault: &Path) -> Result<String> {
-    let arg_str = format!("--vault-password-file={}", vault.display());
-    let args = vec!["decrypt", &arg_str];
-    let mut ansible_vault = Command::new("ansible-vault")
-        .args(&args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+const VAULT_1_1_PREFIX: &str = "$ANSIBLE_VAULT;1.1;AES256";
 
-    let _echo = Command::new("echo")
-        .arg(s)
-        .stdout(ansible_vault.stdin.take().unwrap())
-        .spawn()
-        .unwrap();
-
-    let output = ansible_vault
-        .wait_with_output()
-        .expect("Internal error, failed to wait on child");
-    match output.status.code() {
-        Some(0) => Ok(format!("{}", String::from_utf8_lossy(&output.stdout))),
-        Some(code) => Err(anyhow!(
-            "Error {code} decrypting: {}",
-            String::from_utf8_lossy(&output.stdout)
-        )),
-        None => Ok(String::from("No exit code")),
-    }
+fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {
+    let binding = fs::read_to_string(vault_secret_file)?;
+    let secret = binding.trim();
+    //Ugly but the library does not allow for the header to have a vault id such as: $ANSIBLE_VAULT;1.1;AES256;{vaultID}
+    let first = to_decrypt.lines().next().ok_or(anyhow!("Can't iterate on fist line"))?;
+    let ready = match first {
+        VAULT_1_1_PREFIX => {
+            to_decrypt.to_owned()
+        }
+        _ => {
+            let stripped = to_decrypt.strip_prefix(first).ok_or(anyhow!("Can't strip prefix"))?;
+            let formatted = format!("{}\n{}", VAULT_1_1_PREFIX, stripped);
+            formatted
+        }
+    };
+    let a = decrypt_vault(ready.as_bytes(), &secret);
+    Ok(String::from_utf8(a?).unwrap())
 }
