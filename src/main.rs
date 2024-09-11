@@ -1,6 +1,8 @@
 use std::fs;
+use std::fs::File;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::exit;
+use std::process::{exit, Command};
 
 use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
@@ -59,7 +61,7 @@ fn main() {
     let (secrets_files, vault) = resolve_files(args);
     let decrypt = Box::new(VaultDecrypt::new(vault));
     let collector = SecretsCollector::new(decrypt);
-    collect_secrets_and_print(secrets_files, collector);
+    print_unvaulted_properties(secrets_files, collector);
 }
 
 fn release_log_config() -> Config {
@@ -121,9 +123,9 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn collect_secrets_and_print(files: Vec<PathBuf>, collector: SecretsCollector) {
-    for file in files {
-        match collector.collect(&file) {
+fn print_unvaulted_properties(paths: Vec<PathBuf>, collector: SecretsCollector) {
+    for path in paths {
+        match collector.collect(&path) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
@@ -131,6 +133,35 @@ fn collect_secrets_and_print(files: Vec<PathBuf>, collector: SecretsCollector) {
             Ok(res) => {
                 let string = serde_yaml::to_string(&res).unwrap();
                 println !("{}", string);
+            }
+        }
+    }
+}
+
+fn see_and_edit_properties(paths: Vec<PathBuf>, collector: SecretsCollector) {
+    for path in paths {
+        match collector.collect(&path) {
+            Err(err) => {
+                error!("Error parsing secrets' file: {:?}", err);
+                exit(1);
+            }
+            Ok(res) => {
+                let properties = serde_yaml::to_string(&res).unwrap();
+                let temp = PathBuf::from("/tmp/unvaulted.yml");
+                File::create(&temp).unwrap().write_all(properties.as_bytes()).unwrap();
+
+                let mut vi = Command::new("vi")
+                    .arg(temp.as_os_str())
+                    .spawn()
+                    .expect("Could not execute vi");
+
+                vi.wait().unwrap();
+
+                let mut buf = String::new();
+                File::open(&temp).unwrap().read_to_string(&mut buf).unwrap();
+                println!("{}", buf);
+                
+                //TODO finish: add {vaulted} before vaulted properties and re-vault properties with {vaulted} prefix, then save to original file
             }
         }
     }
