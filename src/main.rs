@@ -1,6 +1,4 @@
 use std::fs;
-use std::fs::File;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
@@ -10,12 +8,12 @@ use log::{error, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
 
-use crate::collector::SecretsCollector;
-use crate::decrypt::VaultDecrypt;
+use crate::walker::PropertiesWalker;
+use crate::encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
 
-mod collector;
-mod decrypt;
+mod walker;
+mod encryption;
 mod vault_secrets;
 
 #[derive(Parser, Debug)]
@@ -59,9 +57,9 @@ fn main() {
     let args = Args::parse();
 
     let (secrets_files, vault) = resolve_files(args);
-    let decrypt = Box::new(VaultDecrypt::new(vault));
-    let collector = SecretsCollector::new(decrypt);
-    print_unvaulted_properties(secrets_files, collector);
+    let decrypt = Box::new(VaultEncryption::new(vault));
+    let collector = PropertiesWalker::new(decrypt);
+    see_and_edit_properties(secrets_files, collector);
 }
 
 fn release_log_config() -> Config {
@@ -123,24 +121,24 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn print_unvaulted_properties(paths: Vec<PathBuf>, collector: SecretsCollector) {
+fn print_unvaulted_properties(paths: Vec<PathBuf>, collector: PropertiesWalker) {
     for path in paths {
-        match collector.collect(&path) {
+        match collector.walk_unvaulting(&path) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
             }
             Ok(res) => {
                 let string = serde_yaml::to_string(&res).unwrap();
-                println !("{}", string);
+                println!("{}", string);
             }
         }
     }
 }
 
-fn see_and_edit_properties(paths: Vec<PathBuf>, collector: SecretsCollector) {
+fn see_and_edit_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
     for path in paths {
-        match collector.collect(&path) {
+        match walker.walk_unvaulting(&path) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
@@ -148,7 +146,7 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, collector: SecretsCollector) {
             Ok(res) => {
                 let properties = serde_yaml::to_string(&res).unwrap();
                 let temp = PathBuf::from("/tmp/unvaulted.yml");
-                File::create(&temp).unwrap().write_all(properties.as_bytes()).unwrap();
+                fs::write(&temp, properties).unwrap();
 
                 let mut vi = Command::new("vi")
                     .arg(temp.as_os_str())
@@ -157,11 +155,17 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, collector: SecretsCollector) {
 
                 vi.wait().unwrap();
 
-                let mut buf = String::new();
-                File::open(&temp).unwrap().read_to_string(&mut buf).unwrap();
-                println!("{}", buf);
-                
-                //TODO finish: add {vaulted} before vaulted properties and re-vault properties with {vaulted} prefix, then save to original file
+                match walker.walk_vaulting(&temp) {
+                    Err(err) => {
+                        error!("Error parsing new file: {:?}", err);
+                        exit(1);
+                    }
+                    Ok(res) => {
+                        let vaulted = serde_yaml::to_string(&res).unwrap();
+                        fs::write(&path, vaulted).unwrap();
+                    }
+                }
+                fs::remove_file(&temp).unwrap();
             }
         }
     }

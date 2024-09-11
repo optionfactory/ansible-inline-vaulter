@@ -1,27 +1,29 @@
 use std::fs;
 use std::path::Path;
 
-use ansible_vault::{decrypt_vault};
+use ansible_vault::{decrypt_vault, encrypt_vault};
 use anyhow::{anyhow, Result};
 
 use crate::vault_secrets::VaultSecrets;
 
-pub struct VaultDecrypt {
+pub struct VaultEncryption {
     vault: VaultSecrets,
 }
 
-pub trait Decrypt {
+pub trait Encryption {
     fn decrypt_with_id(&self, s: &str, id: &str) -> Result<String>;
     fn decrypt_no_id(&self, s: &str) -> Result<String>;
+    fn encrypt_with_id(&self, s: &str, id: &str) -> Result<String>;
+    fn encrypt_no_id(&self, s: &str) -> Result<String>;
 }
 
-impl VaultDecrypt {
+impl VaultEncryption {
     pub fn new(vault: VaultSecrets) -> Self {
-        VaultDecrypt { vault }
+        VaultEncryption { vault }
     }
 }
 
-impl Decrypt for VaultDecrypt {
+impl Encryption for VaultEncryption {
     fn decrypt_with_id(&self, s: &str, id: &str) -> Result<String> {
         do_decrypt(
             s,
@@ -39,6 +41,37 @@ impl Decrypt for VaultDecrypt {
                 .ok_or(anyhow!("No id-less vault file"))?,
         )
     }
+    fn encrypt_with_id(&self, s: &str, id: &str) -> Result<String> {
+        do_encrypt(
+            s,
+            self.vault
+                .get_id(id)
+                .ok_or(anyhow!("No vault file with id {id}"))?,
+            Some(id),
+        )
+    }
+
+    fn encrypt_no_id(&self, s: &str) -> Result<String> {
+        do_encrypt(
+            s,
+            self.vault
+                .get_no_id()
+                .ok_or(anyhow!("No id-less vault file"))?,
+            None,
+        )
+    }
+}
+
+fn do_encrypt(to_encrypt: &str, vault_secret_file: &Path, vault_id: Option<&str>) -> Result<String> {
+    let binding = fs::read_to_string(vault_secret_file)?;
+    let secret = binding.trim();
+    let vaulted = encrypt_vault(to_encrypt.as_bytes(), secret)?;
+    if vault_id.is_none() {
+        return Ok(vaulted);
+    }
+
+    let split = vaulted.split_once('\n').unwrap();
+    Ok(format!("{};{}\n{}", split.0, vault_id.unwrap(), split.1))
 }
 
 const VAULT_1_1_PREFIX: &str = "$ANSIBLE_VAULT;1.1;AES256";
