@@ -1,6 +1,3 @@
-use std::fs;
-use std::path::PathBuf;
-
 use anyhow::Result;
 use lazy_static::lazy_static;
 use log::warn;
@@ -20,15 +17,13 @@ impl PropertiesWalker {
         PropertiesWalker { encryption: decrypt }
     }
 
-    pub fn walk_unvaulting(&self, file: &PathBuf) -> Result<Value> {
-        let content = fs::read_to_string(file)?;
-        let des: Value = serde_yaml::from_str(&content)?;
+    pub fn walk_unvaulting(&self, content: &str) -> Result<Value> {
+        let des: Value = serde_yaml::from_str(content)?;
         Ok(self.visit_unvaulting(&des))
     }
 
-    pub fn walk_vaulting(&self, file: &PathBuf) -> Result<Value> {
-        let content = fs::read_to_string(file)?;
-        let des: Value = serde_yaml::from_str(&content)?;
+    pub fn walk_vaulting(&self, content: &str) -> Result<Value> {
+        let des: Value = serde_yaml::from_str(content)?;
         Ok(self.visit_vaulting(&des))
     }
 

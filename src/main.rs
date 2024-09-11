@@ -7,7 +7,6 @@ use clap::{arg, Parser, Subcommand};
 use log::{error, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
-
 use crate::walker::PropertiesWalker;
 use crate::encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
@@ -121,9 +120,10 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn print_unvaulted_properties(paths: Vec<PathBuf>, collector: PropertiesWalker) {
+fn print_unvaulted_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
     for path in paths {
-        match collector.walk_unvaulting(&path) {
+        let content = fs::read_to_string(&path).unwrap();
+        match walker.walk_unvaulting(&content) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
@@ -138,13 +138,15 @@ fn print_unvaulted_properties(paths: Vec<PathBuf>, collector: PropertiesWalker) 
 
 fn see_and_edit_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
     for path in paths {
-        match walker.walk_unvaulting(&path) {
+        let content = fs::read_to_string(&path).unwrap();
+        match walker.walk_unvaulting(&content) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
             }
             Ok(res) => {
                 let properties = serde_yaml::to_string(&res).unwrap();
+                let starting_md5 = md5::compute(&properties);
                 let temp = PathBuf::from("/tmp/unvaulted.yml");
                 fs::write(&temp, properties).unwrap();
 
@@ -154,8 +156,13 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
                     .expect("Could not execute vi");
 
                 vi.wait().unwrap();
-
-                match walker.walk_vaulting(&temp) {
+                let modified_content = fs::read_to_string(&temp).unwrap();
+                let modified_md5 = md5::compute(&modified_content);
+                if starting_md5.eq(&modified_md5) {
+                   return; 
+                }
+                
+                match walker.walk_vaulting(&modified_content) {
                     Err(err) => {
                         error!("Error parsing new file: {:?}", err);
                         exit(1);
