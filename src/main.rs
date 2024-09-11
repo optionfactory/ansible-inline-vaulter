@@ -129,12 +129,8 @@ fn collect_secrets_and_print(files: Vec<PathBuf>, collector: SecretsCollector) {
                 exit(1);
             }
             Ok(res) => {
-                if !res.is_empty() {
-                    println!("---{}---", file.display());
-                }
-                for (k, v) in res.iter().rev() {
-                    println!("{k}: {v}");
-                }
+                let string = serde_yaml::to_string(&res).unwrap();
+                println !("{}", string);
             }
         }
     }
