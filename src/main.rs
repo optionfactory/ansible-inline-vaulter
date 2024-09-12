@@ -18,7 +18,7 @@ mod vault_secrets;
 #[derive(Parser, Debug)]
 /// Shows a flattened list of decrypted inline secrets
 struct Args {
-    /// Edit on Vi or just print to stdout
+    /// Edit on default editor or just print to stdout
     #[arg(short, long)]
     edit: bool,
     #[command(subcommand)]
