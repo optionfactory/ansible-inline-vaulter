@@ -156,12 +156,12 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
                 let temp = PathBuf::from("/tmp/unvaulted.yml");
                 fs::write(&temp, properties).unwrap();
 
-                let mut vi = Command::new("vi")
+                let mut editor = Command::new("editor")
                     .arg(temp.as_os_str())
                     .spawn()
-                    .expect("Could not execute vi");
+                    .expect("Could not execute editor");
 
-                vi.wait().unwrap();
+                editor.wait().unwrap();
                 let modified_content = fs::read_to_string(&temp).unwrap();
                 let modified_md5 = md5::compute(&modified_content);
                 if starting_md5.eq(&modified_md5) {
