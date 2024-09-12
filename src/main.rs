@@ -18,6 +18,9 @@ mod vault_secrets;
 #[derive(Parser, Debug)]
 /// Shows a flattened list of decrypted inline secrets
 struct Args {
+    /// Edit on Vi or just print to stdout
+    #[arg(short, long)]
+    edit: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -54,10 +57,14 @@ fn main() {
 
     let args = Args::parse();
 
-    let (secrets_files, vault) = resolve_files(args);
+    let (secrets_files, vault) = resolve_files(&args);
     let decrypt = Box::new(VaultEncryption::new(vault));
     let visitor = PropertiesVisitor::new(decrypt);
-    see_and_edit_properties(secrets_files, visitor);
+    if args.edit {
+        see_and_edit_properties(secrets_files, visitor);
+    } else {
+        print_properties(secrets_files, visitor);
+    }
 }
 
 fn release_log_config() -> Config {
@@ -69,8 +76,8 @@ fn release_log_config() -> Config {
         .unwrap()
 }
 
-fn resolve_files(args: Args) -> (Vec<PathBuf>, VaultSecrets) {
-    match args.command {
+fn resolve_files(args: &Args) -> (Vec<PathBuf>, VaultSecrets) {
+    match &args.command {
         Commands::Project {
             inventory_name,
             base_dir,
@@ -101,7 +108,7 @@ fn resolve_files(args: Args) -> (Vec<PathBuf>, VaultSecrets) {
                 }
                 Ok(vault) => vault,
             };
-            let files = vec![secrets_file];
+            let files = vec![secrets_file.clone()];
             (files, vault)
         }
     }
@@ -119,7 +126,7 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn print_unvaulted_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
+fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
     for path in paths {
         let content = fs::read_to_string(&path).unwrap();
         match visitor.visit_unvaulting(&content) {
