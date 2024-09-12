@@ -80,13 +80,16 @@ fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {
     let binding = fs::read_to_string(vault_secret_file)?;
     let secret = binding.trim();
     //Ugly but the library does not allow for the header to have a vault id such as: $ANSIBLE_VAULT;1.1;AES256;{vaultID}
-    let first = to_decrypt.lines().next().ok_or(anyhow!("Can't iterate on fist line"))?;
+    let first = to_decrypt
+        .lines()
+        .next()
+        .ok_or(anyhow!("Can't iterate on fist line"))?;
     let ready = match first {
-        VAULT_1_1_PREFIX => {
-            to_decrypt.to_owned()
-        }
+        VAULT_1_1_PREFIX => to_decrypt.to_owned(),
         _ => {
-            let stripped = to_decrypt.strip_prefix(first).ok_or(anyhow!("Can't strip prefix"))?;
+            let stripped = to_decrypt
+                .strip_prefix(first)
+                .ok_or(anyhow!("Can't strip prefix"))?;
             let formatted = format!("{}\n{}", VAULT_1_1_PREFIX, stripped);
             formatted
         }
