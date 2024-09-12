@@ -71,8 +71,7 @@ fn parse_no_id(cfg: &str) -> Option<String> {
         info!("Could not find 'vault_password_file' in config");
         return None;
     }
-    let maybe_file = maybe_captures
-        .unwrap()
+    let maybe_file = maybe_captures?
         .name("file")
         .map(|m| m.as_str().to_owned());
     if maybe_file.is_none() {
@@ -88,8 +87,7 @@ fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
         info!("Could not find 'vault_identity_list' in config");
         return None;
     }
-    let maybe_list = maybe_captures
-        .unwrap()
+    let maybe_list = maybe_captures?
         .name("file_list")
         .map(|m| m.as_str());
     if maybe_list.is_none() {
