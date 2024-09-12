@@ -2,17 +2,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
+use crate::properties_visitor::PropertiesVisitor;
+use crate::vault_encryption::VaultEncryption;
+use crate::vault_secrets::VaultSecrets;
 use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
 use log::{error, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
-use crate::walker::PropertiesWalker;
-use crate::encryption::VaultEncryption;
-use crate::vault_secrets::VaultSecrets;
 
-mod walker;
-mod encryption;
+mod properties_visitor;
+mod vault_encryption;
 mod vault_secrets;
 
 #[derive(Parser, Debug)]
@@ -43,8 +43,7 @@ enum Commands {
 }
 
 fn main() {
-    if cfg!(debug_assertions)
-    {
+    if cfg!(debug_assertions) {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
         log4rs::init_file(&log_config, Default::default())
             .context(format!("Error with {:?}", &log_config))
@@ -57,8 +56,8 @@ fn main() {
 
     let (secrets_files, vault) = resolve_files(args);
     let decrypt = Box::new(VaultEncryption::new(vault));
-    let collector = PropertiesWalker::new(decrypt);
-    see_and_edit_properties(secrets_files, collector);
+    let visitor = PropertiesVisitor::new(decrypt);
+    see_and_edit_properties(secrets_files, visitor);
 }
 
 fn release_log_config() -> Config {
@@ -120,10 +119,10 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn print_unvaulted_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
+fn print_unvaulted_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
     for path in paths {
         let content = fs::read_to_string(&path).unwrap();
-        match walker.walk_unvaulting(&content) {
+        match visitor.visit_unvaulting(&content) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
@@ -136,10 +135,10 @@ fn print_unvaulted_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
     }
 }
 
-fn see_and_edit_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
+fn see_and_edit_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
     for path in paths {
         let content = fs::read_to_string(&path).unwrap();
-        match walker.walk_unvaulting(&content) {
+        match visitor.visit_unvaulting(&content) {
             Err(err) => {
                 error!("Error parsing secrets' file: {:?}", err);
                 exit(1);
@@ -159,10 +158,10 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, walker: PropertiesWalker) {
                 let modified_content = fs::read_to_string(&temp).unwrap();
                 let modified_md5 = md5::compute(&modified_content);
                 if starting_md5.eq(&modified_md5) {
-                   return; 
+                    return;
                 }
-                
-                match walker.walk_vaulting(&modified_content) {
+
+                match visitor.visit_vaulting(&modified_content) {
                     Err(err) => {
                         error!("Error parsing new file: {:?}", err);
                         exit(1);

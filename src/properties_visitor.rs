@@ -1,36 +1,41 @@
+use crate::vault_encryption::Encryption;
 use anyhow::Result;
 use lazy_static::lazy_static;
 use log::warn;
 use regex::Regex;
-use serde_yaml::{Mapping, Value};
 use serde_yaml::value::{Tag, TaggedValue};
-use crate::encryption::Encryption;
+use serde_yaml::{Mapping, Value};
 
-pub struct PropertiesWalker {
+pub struct PropertiesVisitor {
     encryption: Box<dyn Encryption>,
 }
 
-static PREFIX : &str = "<vaulted>";
+static PREFIX: &str = "<vaulted>";
 
-impl PropertiesWalker {
+impl PropertiesVisitor {
     pub fn new(decrypt: Box<dyn Encryption>) -> Self {
-        PropertiesWalker { encryption: decrypt }
+        PropertiesVisitor {
+            encryption: decrypt,
+        }
     }
 
-    pub fn walk_unvaulting(&self, content: &str) -> Result<Value> {
+    pub fn visit_unvaulting(&self, content: &str) -> Result<Value> {
         let des: Value = serde_yaml::from_str(content)?;
-        Ok(self.visit_unvaulting(&des))
+        Ok(self.do_visit_unvaulting(&des))
     }
 
-    pub fn walk_vaulting(&self, content: &str) -> Result<Value> {
+    pub fn visit_vaulting(&self, content: &str) -> Result<Value> {
         let des: Value = serde_yaml::from_str(content)?;
-        Ok(self.visit_vaulting(&des))
+        Ok(self.do_visit_vaulting(&des))
     }
 
-    fn visit_unvaulting(&self, val: &Value) -> Value {
+    fn do_visit_unvaulting(&self, val: &Value) -> Value {
         match val {
             Value::Mapping(m) => {
-                let mapping: Mapping = m.iter().map(|(k, v)| (k.clone(), self.visit_unvaulting(v))).collect();
+                let mapping: Mapping = m
+                    .iter()
+                    .map(|(k, v)| (k.clone(), self.do_visit_unvaulting(v)))
+                    .collect();
                 Value::from(mapping)
             }
             Value::Tagged(t) => {
@@ -48,9 +53,7 @@ impl PropertiesWalker {
                         let with_prefix = unvaulted.map(|res| format!("{}{}", PREFIX, res));
 
                         match with_prefix {
-                            Ok(res) => {
-                                Value::String(res)
-                            }
+                            Ok(res) => Value::String(res),
                             Err(_) => {
                                 warn!("Error unvaulting tag value of {val:?}");
                                 val.clone()
@@ -63,14 +66,17 @@ impl PropertiesWalker {
                     }
                 }
             }
-            _ => { val.clone() }
+            _ => val.clone(),
         }
     }
 
-    fn visit_vaulting(&self, val: &Value) -> Value {
+    fn do_visit_vaulting(&self, val: &Value) -> Value {
         match val {
             Value::Mapping(m) => {
-                let mapping: Mapping = m.iter().map(|(k, v)| (k.clone(), self.visit_vaulting(v))).collect();
+                let mapping: Mapping = m
+                    .iter()
+                    .map(|(k, v)| (k.clone(), self.do_visit_vaulting(v)))
+                    .collect();
                 Value::from(mapping)
             }
             Value::String(str) => {
@@ -79,15 +85,18 @@ impl PropertiesWalker {
                 }
                 let no_prefix = str.strip_prefix(PREFIX).unwrap();
                 let vaulted = if let Some(id) = extract_vault_id(no_prefix) {
-                    self.encryption.encrypt_with_id(no_prefix.trim(), id.as_ref())
+                    self.encryption
+                        .encrypt_with_id(no_prefix.trim(), id.as_ref())
                 } else {
                     self.encryption.encrypt_no_id(no_prefix.trim())
                 };
 
-
                 match vaulted {
                     Ok(res) => {
-                        let tv = TaggedValue { tag: Tag::new("vault"), value: Value::String(res) };
+                        let tv = TaggedValue {
+                            tag: Tag::new("vault"),
+                            value: Value::String(res),
+                        };
                         Value::Tagged(Box::new(tv))
                     }
                     Err(_) => {
@@ -96,7 +105,7 @@ impl PropertiesWalker {
                     }
                 }
             }
-            _ => { val.clone() }
+            _ => val.clone(),
         }
     }
 }
@@ -115,7 +124,7 @@ fn extract_vault_id(value: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::walker::extract_vault_id;
+    use crate::properties_visitor::extract_vault_id;
 
     #[test]
     fn test_match_vault_id() {
