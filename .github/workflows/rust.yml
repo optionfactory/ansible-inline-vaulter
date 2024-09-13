@@ -1,17 +1,25 @@
-name: Rust
+name: Release
 
 on:
+  push:
+    tags: ["v*.*.*"]
   workflow_dispatch:
-  release:
-    types:
-      - published
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust:
-    runs-on: self-hosted
+  github:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
       - name: Install rust toolchain
@@ -19,12 +27,19 @@ jobs:
         with:
           toolchain: stable
           cache: true
-      - name: Build
-        run: cargo build --release
-      - name: Run tests
-        run: cargo test --verbose
-      - name: Upload artifact
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+      - name: Build Assets
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          tar -C target/${{ matrix.target }}/release/ -czvf ansible-inline-vault-viewer-${{ matrix.target }}.tar.gz ansible-inline-vault-viewer
+      - name: Upload Release Assets
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          files: '*.tar.gz'
+      - name: Upload Artifacts
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: ansible-inline-vault-viewer
-          path: target/release/ansible-inline-vault-viewer
+          path: '*.tar.gz'
