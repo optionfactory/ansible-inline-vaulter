@@ -17,7 +17,8 @@ mod vault_encryption;
 mod vault_secrets;
 
 #[derive(Parser, Debug)]
-/// Shows a flattened list of decrypted inline secrets
+#[command(author = "Enrico Falanga", version, about)]
+/// Easily view or edit secret properties using Ansible inline vaulting
 struct Args {
     #[command(flatten)]
     verbose: clap_verbosity_flag::Verbosity,
@@ -30,14 +31,16 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// View or edit all the properties of a given inventory (e.g. 'prod') of a given directory
     Project {
-        /// Decrypt all inline secrets of all files into <inventory_name>/group_vars/ and subfolders
+        /// View or edit all inline secrets of all files into inventories/<inventory_name>/group_vars/ and subfolders
         #[arg(short, long)]
         inventory_name: String,
         /// Directory containing Ansible files (e.g. ansible.cfg, inventories/)
         #[arg(short, long)]
         base_dir: PathBuf,
     },
+    /// Give the single file to view or edit and the vault password file to use
     Single {
         /// The file with the inline secrets to decrypt
         #[arg(short, long)]
@@ -50,7 +53,7 @@ enum Commands {
 
 fn main() {
     let args = Args::parse();
-    
+
     if cfg!(debug_assertions) {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
         log4rs::init_file(&log_config, Default::default())
