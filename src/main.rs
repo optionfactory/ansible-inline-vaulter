@@ -7,9 +7,10 @@ use crate::vault_encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
 use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
-use log::{error, LevelFilter};
+use clap_verbosity_flag::Verbosity;
+use log::{error};
 use log4rs::append::console::ConsoleAppender;
-use log4rs::config::{Appender, Config, Logger, Root};
+use log4rs::config::{Appender, Config, Root};
 
 mod properties_visitor;
 mod vault_encryption;
@@ -18,6 +19,8 @@ mod vault_secrets;
 #[derive(Parser, Debug)]
 /// Shows a flattened list of decrypted inline secrets
 struct Args {
+    #[command(flatten)]
+    verbose: clap_verbosity_flag::Verbosity,
     /// Edit on default editor or just print to stdout
     #[arg(short, long)]
     edit: bool,
@@ -46,16 +49,17 @@ enum Commands {
 }
 
 fn main() {
+    let args = Args::parse();
+    
     if cfg!(debug_assertions) {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
         log4rs::init_file(&log_config, Default::default())
             .context(format!("Error with '{:?}'", &log_config))
             .unwrap();
     } else {
-        log4rs::init_config(release_log_config()).unwrap();
+        log4rs::init_config(release_log_config(&args.verbose)).unwrap();
     }
 
-    let args = Args::parse();
 
     let (secrets_files, vault) = resolve_files(&args);
     let decrypt = Box::new(VaultEncryption::new(vault));
@@ -67,12 +71,11 @@ fn main() {
     }
 }
 
-fn release_log_config() -> Config {
+fn release_log_config(verbosity: &Verbosity) -> Config {
     let stdout = ConsoleAppender::builder().build();
     Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .logger(Logger::builder().build("ansible-inline-vault-viewer", LevelFilter::Info))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        .build(Root::builder().appender("stdout").build(verbosity.log_level_filter()))
         .unwrap()
 }
 

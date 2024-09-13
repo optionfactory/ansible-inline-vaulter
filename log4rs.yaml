@@ -3,9 +3,6 @@ appenders:
   stdout:
     kind: console
 root:
-  level: warn
+  level: info
   appenders:
     - stdout
-loggers:
-  ansible-inline-vault-viewer:
-    level: debug
