@@ -1,7 +1,8 @@
+use std::process::exit;
 use crate::vault_encryption::Encryption;
 use anyhow::Result;
 use lazy_static::lazy_static;
-use log::warn;
+use log::{error, warn};
 use regex::Regex;
 use serde_yaml::value::{Tag, TaggedValue};
 use serde_yaml::{Mapping, Value};
@@ -54,14 +55,14 @@ impl PropertiesVisitor {
 
                         match with_prefix {
                             Ok(res) => Value::String(res),
-                            Err(_) => {
-                                warn!("Error unvaulting tag value of {val:?}");
-                                val.clone()
+                            Err(err) => {
+                                error!("Error unvaulting '{str:?}': {err:?}");
+                                exit(1);
                             }
                         }
                     }
                     _ => {
-                        warn!("The tag value of {val:?} is not a string, what is it?");
+                        warn!("'{:?}' is not a string value, what is it?", &t.value);
                         val.clone()
                     }
                 }
@@ -99,9 +100,9 @@ impl PropertiesVisitor {
                         };
                         Value::Tagged(Box::new(tv))
                     }
-                    Err(_) => {
-                        warn!("Error vaulting value of {val:?}");
-                        val.clone()
+                    Err(err) => {
+                        error!("Error vaulting '{str:?}': {err:?}");
+                        exit(1);
                     }
                 }
             }

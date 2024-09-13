@@ -49,7 +49,7 @@ fn main() {
     if cfg!(debug_assertions) {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
         log4rs::init_file(&log_config, Default::default())
-            .context(format!("Error with {:?}", &log_config))
+            .context(format!("Error with '{:?}'", &log_config))
             .unwrap();
     } else {
         log4rs::init_config(release_log_config()).unwrap();
@@ -92,7 +92,7 @@ fn resolve_files(args: &Args) -> (Vec<PathBuf>, VaultSecrets) {
 
             let inventory = base_dir.join(format!("inventories/{}/group_vars", inventory_name));
             if !Path::exists(&inventory) {
-                error!("Could not find {}", inventory.display());
+                error!("Could not find '{}'", inventory.display());
                 exit(1);
             }
             (find_group_vars_files(&inventory), vault)
