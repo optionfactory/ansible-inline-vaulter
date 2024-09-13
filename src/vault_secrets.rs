@@ -13,22 +13,21 @@ pub struct VaultSecrets {
 
 impl VaultSecrets {
     pub fn from_config(base_dir: &Path) -> Result<Self> {
-        let cfg = retrieve_cfg(base_dir)?;
+        let cfg = read_cfg(base_dir)?;
 
         let vault_file = parse_no_id(&cfg)
-            .map(|v| shellexpand::tilde(&v).to_string())
-            .map(PathBuf::from)
-            .filter(|p| Path::exists(p));
+            .map(|f| shellexpand::tilde(&f).to_string())
+            .map(PathBuf::from);
 
         let vault_ids: HashMap<String, PathBuf> = parse_ids(&cfg)
             .iter()
             .flat_map(|m| m.iter())
             .map(|(k, v)| (k, shellexpand::tilde(v).to_string()))
             .map(|(k, v)| (k.clone(), PathBuf::from(v)))
-            .filter(|(_, v)| Path::exists(v))
             .collect();
+        
         if vault_file.is_none() && vault_ids.is_empty() {
-            return Err(anyhow!("Could not find any existing vault file in config"));
+            return Err(anyhow!("Missing any vault file path"));
         }
 
         Ok(VaultSecrets {
@@ -39,7 +38,7 @@ impl VaultSecrets {
 
     pub fn from_path(path: &Path) -> Result<Self> {
         if !Path::exists(path) {
-            return Err(anyhow!("File {} does not exist", path.display()));
+            return Err(anyhow!("File '{}' does not exist", path.display()));
         }
         Ok(VaultSecrets {
             no_id: Some(path.to_owned()),
@@ -56,10 +55,10 @@ impl VaultSecrets {
     }
 }
 
-fn retrieve_cfg(base_path: &Path) -> Result<String> {
+fn read_cfg(base_path: &Path) -> Result<String> {
     let cfg = base_path.join("ansible.cfg");
     if !Path::exists(&cfg) {
-        return Err(anyhow!("Could not find {}", cfg.display()));
+        return Err(anyhow!("Could not find '{}'", cfg.display()));
     }
     Ok(fs::read_to_string(cfg)?)
 }

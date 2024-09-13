@@ -6,4 +6,6 @@ Piccolo tool per poter vedere o modificare i secrets vaultati _inline_ all'inter
 ## Todo
 
 - Supporta host vars
-- Migliorare messaggio di errore nel caso che i file specificati in ansible.cfg non esistano
+- Andarsi a cercare la cartella 'ansible' a partire dalla cartella di progetto
+- Miglior log/print degli errori
+- Pulizia
