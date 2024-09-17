@@ -7,5 +7,4 @@ Piccolo tool per poter vedere o modificare i secrets vaultati _inline_ all'inter
 
 - Supporta host vars
 - Andarsi a cercare la cartella 'ansible' a partire dalla cartella di progetto
-- Miglior log/print degli errori
 - Pulizia
