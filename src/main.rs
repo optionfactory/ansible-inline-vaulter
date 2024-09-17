@@ -11,6 +11,7 @@ use clap_verbosity_flag::Verbosity;
 use log::{error};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
+use log4rs::encode::pattern::PatternEncoder;
 
 mod properties_visitor;
 mod vault_encryption;
@@ -75,7 +76,9 @@ fn main() {
 }
 
 fn release_log_config(verbosity: &Verbosity) -> Config {
-    let stdout = ConsoleAppender::builder().build();
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{h({l}:)} {m}{n}")))
+        .build();
     Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .build(Root::builder().appender("stdout").build(verbosity.log_level_filter()))
