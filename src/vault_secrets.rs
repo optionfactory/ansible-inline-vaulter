@@ -1,10 +1,9 @@
+use anyhow::{anyhow, Result};
+use log::{debug};
+use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-use anyhow::{anyhow, Result};
-use log::{info, warn};
-use regex::Regex;
 
 pub struct VaultSecrets {
     no_id: Option<PathBuf>,
@@ -12,9 +11,8 @@ pub struct VaultSecrets {
 }
 
 impl VaultSecrets {
-    pub fn from_config(base_dir: &Path) -> Result<Self> {
-        let cfg = read_cfg(base_dir)?;
-
+    pub fn from_config(ansible_cfg_file: &Path) -> Result<Self> {
+        let cfg = fs::read_to_string(ansible_cfg_file)?;
         let vault_file = parse_no_id(&cfg)
             .map(|f| shellexpand::tilde(&f).to_string())
             .map(PathBuf::from);
@@ -25,7 +23,7 @@ impl VaultSecrets {
             .map(|(k, v)| (k, shellexpand::tilde(v).to_string()))
             .map(|(k, v)| (k.clone(), PathBuf::from(v)))
             .collect();
-        
+
         if vault_file.is_none() && vault_ids.is_empty() {
             return Err(anyhow!("Missing any vault file path"));
         }
@@ -55,45 +53,26 @@ impl VaultSecrets {
     }
 }
 
-fn read_cfg(base_path: &Path) -> Result<String> {
-    let cfg = base_path.join("ansible.cfg");
-    if !Path::exists(&cfg) {
-        return Err(anyhow!("Could not find '{}'", cfg.display()));
-    }
-    Ok(fs::read_to_string(cfg)?)
-}
-
 fn parse_no_id(cfg: &str) -> Option<String> {
     let regex: Regex = Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap();
-    let maybe_captures = regex.captures(cfg);
-    if maybe_captures.is_none() {
-        info!("Could not find 'vault_password_file' in config");
-        return None;
-    }
-    let maybe_file = maybe_captures?
+    regex.captures(cfg)?
         .name("file")
-        .map(|m| m.as_str().to_owned());
-    if maybe_file.is_none() {
-        warn!("No match for 'vault_password_file' value");
-    }
-    maybe_file
+        .map(|m| {
+            let file = m.as_str().to_owned();
+            debug!("Found vault_password_file property with value: '{}'", file);
+            file
+        })
 }
 
 fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
     let regex: Regex = Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap();
-    let maybe_captures = regex.captures(cfg);
-    if maybe_captures.is_none() {
-        info!("Could not find 'vault_identity_list' in config");
-        return None;
-    }
-    let maybe_list = maybe_captures?
+    regex.captures(cfg)?
         .name("file_list")
-        .map(|m| m.as_str());
-    if maybe_list.is_none() {
-        warn!("No match for 'vault_identity_list' value");
-    }
-
-    maybe_list
+        .map(|m| {
+            let ids = m.as_str();
+            debug!("Found vault_identity_list property with value: '{}'", ids);
+            ids
+        })
         .map(|s| s.split(',').collect::<Vec<&str>>())
         .map(|v| {
             v.iter()

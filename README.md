@@ -6,5 +6,3 @@ Piccolo tool per poter vedere o modificare i secrets vaultati _inline_ all'inter
 ## Todo
 
 - Supporta host vars
-- Andarsi a cercare la cartella 'ansible' a partire dalla cartella di progetto
-- Pulizia

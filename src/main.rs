@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
+use anyhow::{anyhow, Result};
 
 use crate::properties_visitor::PropertiesVisitor;
 use crate::vault_encryption::VaultEncryption;
@@ -8,10 +9,11 @@ use crate::vault_secrets::VaultSecrets;
 use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
-use log::{error};
+use log::{debug, error};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
+use walkdir::WalkDir;
 
 mod properties_visitor;
 mod vault_encryption;
@@ -64,8 +66,14 @@ fn main() {
         log4rs::init_config(release_log_config(&args.verbose)).unwrap();
     }
 
+    let (secrets_files, vault) = match resolve_files(&args.command) {
+        Err(err) => {
+            error!("Error resolving project: {}", err);
+            exit(1);
+        }
+        Ok((secrets_files, vault)) => (secrets_files, vault)
+    };
 
-    let (secrets_files, vault) = resolve_files(&args);
     let decrypt = Box::new(VaultEncryption::new(vault));
     let visitor = PropertiesVisitor::new(decrypt);
     if args.edit {
@@ -85,40 +93,33 @@ fn release_log_config(verbosity: &Verbosity) -> Config {
         .unwrap()
 }
 
-fn resolve_files(args: &Args) -> (Vec<PathBuf>, VaultSecrets) {
-    match &args.command {
+fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
+    match &command {
         Commands::Project {
             inventory_name,
-            base_dir,
+            base_dir: project_dir,
         } => {
-            let vault = match VaultSecrets::from_config(&base_dir) {
-                Err(err) => {
-                    error!("Error retrieving vault file(s) from ansible.cfg: {:?}", err);
-                    exit(1);
-                }
-                Ok(vault) => vault,
-            };
-
-            let inventory = base_dir.join(format!("inventories/{}/group_vars", inventory_name));
+            let ansible_cfg_dir = WalkDir::new(project_dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .find(|e| "ansible.cfg".eq_ignore_ascii_case(e.file_name().to_str().unwrap()))
+                .ok_or(anyhow!("Could not find ansible.cfg"))?;
+            let ansible_dir = &ansible_cfg_dir.path().parent().unwrap();
+            debug!("Ansible dir is {}", &ansible_dir.display());
+            let vault = VaultSecrets::from_config(&ansible_cfg_dir.path())?;
+            let inventory = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
             if !Path::exists(&inventory) {
-                error!("Could not find '{}'", inventory.display());
-                exit(1);
+                return Err(anyhow!("Could not find '{}'", inventory.display()));
             }
-            (find_group_vars_files(&inventory), vault)
+            Ok((find_group_vars_files(&inventory), vault))
         }
         Commands::Single {
             secrets_file,
             vault_password_file,
         } => {
-            let vault = match VaultSecrets::from_path(&vault_password_file) {
-                Err(err) => {
-                    error!("Error retrieving vault file(s) from path: {:?}", err);
-                    exit(1);
-                }
-                Ok(vault) => vault,
-            };
+            let vault = VaultSecrets::from_path(&vault_password_file)?;
             let files = vec![secrets_file.clone()];
-            (files, vault)
+            Ok((files, vault))
         }
     }
 }
