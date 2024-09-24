@@ -9,6 +9,7 @@ use crate::vault_secrets::VaultSecrets;
 use anyhow::Context;
 use clap::{arg, Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
+use colored::Colorize;
 use log::{debug, error};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
@@ -26,8 +27,11 @@ struct Args {
     #[command(flatten)]
     verbose: clap_verbosity_flag::Verbosity,
     /// Edit on default editor or just print to stdout
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = false)]
     edit: bool,
+    /// Highlight in color the vaulted properties when printing on stdout
+    #[arg(short, long, default_value_t = false)]
+    color: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -79,7 +83,7 @@ fn main() {
     if args.edit {
         see_and_edit_properties(secrets_files, visitor);
     } else {
-        print_properties(secrets_files, visitor);
+        print_properties(secrets_files, visitor, args.color);
     }
 }
 
@@ -136,7 +140,7 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
+fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor, color: bool) {
     for path in paths {
         let content = fs::read_to_string(&path).unwrap();
         match visitor.visit_unvaulting(&content) {
@@ -145,8 +149,13 @@ fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
                 exit(1);
             }
             Ok(res) => {
-                let string = serde_yaml::to_string(&res).unwrap();
-                println!("{}", string);
+                serde_yaml::to_string(&res).unwrap().split('\n').for_each(|l| {
+                    if color && l.contains("<vaulted>") {
+                        println!("{}", l.color("green"))
+                    } else {
+                        println!("{}", l)
+                    }
+                });
             }
         }
     }
