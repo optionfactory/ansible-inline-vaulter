@@ -151,7 +151,8 @@ fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor, color: bool
             Ok(res) => {
                 serde_yaml::to_string(&res).unwrap().split('\n').for_each(|l| {
                     if color && l.contains("<vaulted>") {
-                        println!("{}", l.color("green"))
+                        let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
+                        println!("{}{}", split[0], split[1].color("green"))
                     } else {
                         println!("{}", l)
                     }
