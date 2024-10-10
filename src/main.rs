@@ -111,11 +111,13 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
             let ansible_dir = &ansible_cfg_dir.path().parent().unwrap();
             debug!("Ansible dir is {}", &ansible_dir.display());
             let vault = VaultSecrets::from_config(&ansible_cfg_dir.path())?;
-            let inventory = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
-            if !Path::exists(&inventory) {
-                return Err(anyhow!("Could not find '{}'", inventory.display()));
+            let group_vars = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
+            let host_vars = ansible_dir.join(format!("inventories/{}/host_vars", inventory_name));
+            if !Path::exists(&group_vars) && !Path::exists(&host_vars) {
+                return Err(anyhow!("Could not find neither '{}' nor '{}'", group_vars.display(), host_vars.display()));
             }
-            Ok((find_group_vars_files(&inventory), vault))
+            let vars: Vec<PathBuf> = find_var_files(&group_vars).into_iter().chain(find_var_files(&host_vars).into_iter()).collect();
+            Ok((vars, vault))
         }
         Commands::Single {
             secrets_file,
@@ -128,13 +130,17 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
     }
 }
 
-fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
+fn find_var_files(path: &Path) -> Vec<PathBuf> {
+    if !Path::exists(&path) {
+        return vec![];
+    }
+    debug!("Found '{}'", path.display());
     let read_dir = fs::read_dir(path).unwrap();
     let files: Vec<PathBuf> = read_dir.into_iter().map(|p| p.unwrap().path()).collect();
     let mut not_dirs: Vec<PathBuf> = files.clone().into_iter().filter(|f| !f.is_dir()).collect();
 
     for file in files.into_iter().filter(|f| f.is_dir()) {
-        not_dirs.append(&mut find_group_vars_files(&file))
+        not_dirs.append(&mut find_var_files(&file))
     }
 
     not_dirs
@@ -142,6 +148,7 @@ fn find_group_vars_files(path: &Path) -> Vec<PathBuf> {
 
 fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor, color: bool) {
     for path in paths {
+        println!("-----{}-----", path.display());
         let content = fs::read_to_string(&path).unwrap();
         match visitor.visit_unvaulting(&content) {
             Err(err) => {
