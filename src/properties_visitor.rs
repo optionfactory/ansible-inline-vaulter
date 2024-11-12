@@ -40,7 +40,7 @@ impl PropertiesVisitor {
                 Value::from(mapping)
             }
             Value::Tagged(t) => {
-                if t.tag.to_string() != "!vault" {
+                if t.tag != "!vault" {
                     return val.clone();
                 }
 
