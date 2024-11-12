@@ -1,7 +1,7 @@
+use anyhow::{anyhow, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
-use anyhow::{anyhow, Result};
 
 use crate::properties_visitor::PropertiesVisitor;
 use crate::vault_encryption::VaultEncryption;
@@ -75,7 +75,7 @@ fn main() {
             error!("Error resolving project: {}", err);
             exit(1);
         }
-        Ok((secrets_files, vault)) => (secrets_files, vault)
+        Ok((secrets_files, vault)) => (secrets_files, vault),
     };
 
     let decrypt = Box::new(VaultEncryption::new(vault));
@@ -93,7 +93,11 @@ fn release_log_config(verbosity: &Verbosity) -> Config {
         .build();
     Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(verbosity.log_level_filter()))
+        .build(
+            Root::builder()
+                .appender("stdout")
+                .build(verbosity.log_level_filter()),
+        )
         .unwrap()
 }
 
@@ -114,9 +118,17 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
             let group_vars = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
             let host_vars = ansible_dir.join(format!("inventories/{}/host_vars", inventory_name));
             if !Path::exists(&group_vars) && !Path::exists(&host_vars) {
-                return Err(anyhow!("Could not find neither '{}' nor '{}'", group_vars.display(), host_vars.display()));
+                return Err(anyhow!(
+                    "Could not find neither '{}' nor '{}'",
+                    group_vars.display(),
+                    host_vars.display()
+                ));
             }
-            let vars: Vec<PathBuf> = find_var_files(&group_vars).iter().chain(find_var_files(&host_vars).iter()).cloned().collect();
+            let vars: Vec<PathBuf> = find_var_files(&group_vars)
+                .iter()
+                .chain(find_var_files(&host_vars).iter())
+                .cloned()
+                .collect();
             Ok((vars, vault))
         }
         Commands::Single {
@@ -156,14 +168,17 @@ fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor, color: bool
                 exit(1);
             }
             Ok(res) => {
-                serde_yaml::to_string(&res).unwrap().split('\n').for_each(|l| {
-                    if color && l.contains("<vaulted>") {
-                        let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
-                        println!("{}{}", split[0], split[1].color("green"))
-                    } else {
-                        println!("{}", l)
-                    }
-                });
+                serde_yaml::to_string(&res)
+                    .unwrap()
+                    .split('\n')
+                    .for_each(|l| {
+                        if color && l.contains("<vaulted>") {
+                            let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
+                            println!("{}{}", split[0], split[1].color("green"))
+                        } else {
+                            println!("{}", l)
+                        }
+                    });
             }
         }
     }

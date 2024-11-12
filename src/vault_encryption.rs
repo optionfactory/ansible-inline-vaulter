@@ -41,7 +41,7 @@ impl Encryption for VaultEncryption {
                 .ok_or(anyhow!("No id-less vault file"))?,
         )
     }
-    
+
     fn encrypt_with_id(&self, s: &str, id: &str) -> Result<String> {
         do_encrypt(
             s,
@@ -63,9 +63,16 @@ impl Encryption for VaultEncryption {
     }
 }
 
-fn do_encrypt(to_encrypt: &str, vault_secret_file: &Path, vault_id: Option<&str>) -> Result<String> {
+fn do_encrypt(
+    to_encrypt: &str,
+    vault_secret_file: &Path,
+    vault_id: Option<&str>,
+) -> Result<String> {
     if !vault_secret_file.is_file() {
-        return Err(anyhow!("Vault file '{}' does not exist.", vault_secret_file.display()));
+        return Err(anyhow!(
+            "Vault file '{}' does not exist.",
+            vault_secret_file.display()
+        ));
     }
     let binding = fs::read_to_string(vault_secret_file)?;
     let secret = binding.trim();
@@ -82,7 +89,10 @@ const VAULT_1_1_PREFIX: &str = "$ANSIBLE_VAULT;1.1;AES256";
 
 fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {
     if !vault_secret_file.is_file() {
-        return Err(anyhow!("Vault file '{}' does not exist.", vault_secret_file.display()));
+        return Err(anyhow!(
+            "Vault file '{}' does not exist.",
+            vault_secret_file.display()
+        ));
     }
     let binding = fs::read_to_string(vault_secret_file)?;
     let secret = binding.trim();

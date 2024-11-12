@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use log::{debug};
+use log::debug;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
@@ -55,18 +55,17 @@ impl VaultSecrets {
 
 fn parse_no_id(cfg: &str) -> Option<String> {
     let regex: Regex = Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap();
-    regex.captures(cfg)?
-        .name("file")
-        .map(|m| {
-            let file = m.as_str().to_owned();
-            debug!("Found vault_password_file property with value: '{}'", file);
-            file
-        })
+    regex.captures(cfg)?.name("file").map(|m| {
+        let file = m.as_str().to_owned();
+        debug!("Found vault_password_file property with value: '{}'", file);
+        file
+    })
 }
 
 fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
     let regex: Regex = Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap();
-    regex.captures(cfg)?
+    regex
+        .captures(cfg)?
         .name("file_list")
         .map(|m| {
             let ids = m.as_str();

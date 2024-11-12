@@ -1,4 +1,3 @@
-use std::process::exit;
 use crate::vault_encryption::Encryption;
 use anyhow::Result;
 use lazy_static::lazy_static;
@@ -6,6 +5,7 @@ use log::{error, warn};
 use regex::Regex;
 use serde_yaml::value::{Tag, TaggedValue};
 use serde_yaml::{Mapping, Value};
+use std::process::exit;
 
 pub struct PropertiesVisitor {
     encryption: Box<dyn Encryption>,
