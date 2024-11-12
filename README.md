@@ -7,6 +7,7 @@ Piccolo tool per poter vedere o modificare i secrets vaultati _inline_ all'inter
 - Supporta host_vars
 - Filtra per nome gruppo/host (gestisci all/ungrouped)
 - Supporta liste
+- Rinomina in Ansible inline vaulter
 
 ## Link doc
 

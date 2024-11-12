@@ -110,20 +110,20 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
                 .ok_or(anyhow!("Could not find ansible.cfg"))?;
             let ansible_dir = &ansible_cfg_dir.path().parent().unwrap();
             debug!("Ansible dir is {}", &ansible_dir.display());
-            let vault = VaultSecrets::from_config(&ansible_cfg_dir.path())?;
+            let vault = VaultSecrets::from_config(ansible_cfg_dir.path())?;
             let group_vars = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
             let host_vars = ansible_dir.join(format!("inventories/{}/host_vars", inventory_name));
             if !Path::exists(&group_vars) && !Path::exists(&host_vars) {
                 return Err(anyhow!("Could not find neither '{}' nor '{}'", group_vars.display(), host_vars.display()));
             }
-            let vars: Vec<PathBuf> = find_var_files(&group_vars).into_iter().chain(find_var_files(&host_vars).into_iter()).collect();
+            let vars: Vec<PathBuf> = find_var_files(&group_vars).iter().chain(find_var_files(&host_vars).iter()).cloned().collect();
             Ok((vars, vault))
         }
         Commands::Single {
             secrets_file,
             vault_password_file,
         } => {
-            let vault = VaultSecrets::from_path(&vault_password_file)?;
+            let vault = VaultSecrets::from_path(vault_password_file)?;
             let files = vec![secrets_file.clone()];
             Ok((files, vault))
         }
@@ -131,7 +131,7 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
 }
 
 fn find_var_files(path: &Path) -> Vec<PathBuf> {
-    if !Path::exists(&path) {
+    if !Path::exists(path) {
         return vec![];
     }
     debug!("Found '{}'", path.display());

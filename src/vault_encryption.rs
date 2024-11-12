@@ -101,6 +101,6 @@ fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {
             formatted
         }
     };
-    let a = decrypt_vault(ready.as_bytes(), &secret);
-    Ok(String::from_utf8(a?).unwrap())
+    let a = decrypt_vault(ready.as_bytes(), secret);
+    Ok(String::from_utf8(a?)?)
 }
