@@ -3,10 +3,7 @@
 Piccolo tool per poter vedere o modificare i secrets vaultati _inline_ all'interno di un file, senza doverli svaultare uno a uno o dover usare l'estensione di vscode (che modifica il file con il secret in chiaro e poi si rischia di committarlo).
 
 ## Todo
-
-- Supporta host_vars
 - Filtra per nome gruppo/host (gestisci all/ungrouped)
-- Supporta liste
 - Rinomina in Ansible inline vaulter
 
 ## Link doc

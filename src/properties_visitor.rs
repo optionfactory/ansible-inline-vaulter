@@ -43,7 +43,6 @@ impl PropertiesVisitor {
                 if t.tag != "!vault" {
                     return val.clone();
                 }
-
                 match &t.value {
                     Value::String(str) => {
                         let unvaulted = if let Some(id) = extract_vault_id(str) {
@@ -66,6 +65,13 @@ impl PropertiesVisitor {
                         val.clone()
                     }
                 }
+            }
+            Value::Sequence(seq) => {
+                let mut new_sequence: Vec<Value> = Vec::with_capacity(seq.len());
+                for val in seq {
+                    new_sequence.push(self.do_visit_unvaulting(val));
+                }
+                Value::Sequence(new_sequence)
             }
             _ => val.clone(),
         }
@@ -105,6 +111,13 @@ impl PropertiesVisitor {
                         exit(1);
                     }
                 }
+            }
+            Value::Sequence(seq) => {
+                let mut new_sequence: Vec<Value> = Vec::with_capacity(seq.len());
+                for val in seq {
+                    new_sequence.push(self.do_visit_vaulting(val));
+                }
+                Value::Sequence(new_sequence)
             }
             _ => val.clone(),
         }
