@@ -4,7 +4,6 @@ Piccolo tool per poter vedere o modificare i secrets vaultati _inline_ all'inter
 
 ## Todo
 - Filtra per nome gruppo/host (gestisci all/ungrouped)
-- Rinomina in Ansible inline vaulter
 
 ## Link doc
 
