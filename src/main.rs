@@ -195,8 +195,12 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
             Ok(res) => {
                 let properties = serde_yaml::to_string(&res).unwrap();
                 let starting_md5 = md5::compute(&properties);
-                let temp = PathBuf::from("/tmp/unvaulted.yml");
-                fs::write(&temp, properties).unwrap();
+
+                let mut temp = PathBuf::from("/tmp");
+                let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
+                rev_vars_folder.iter().rev().for_each(|rel| temp.push(rel));
+                fs::create_dir_all(temp.parent().unwrap()).unwrap();
+                fs::write(&temp, properties).expect("Could not write file");
 
                 let mut editor = Command::new("editor")
                     .arg(temp.as_os_str())
@@ -207,7 +211,7 @@ fn see_and_edit_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
                 let modified_content = fs::read_to_string(&temp).unwrap();
                 let modified_md5 = md5::compute(&modified_content);
                 if starting_md5.eq(&modified_md5) {
-                    return;
+                    continue;
                 }
 
                 match visitor.visit_vaulting(&modified_content) {
