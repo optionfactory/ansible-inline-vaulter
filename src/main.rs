@@ -3,11 +3,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
+use crate::list_selector::{ListSelector, SimpleListSelector};
 use crate::properties_visitor::PropertiesVisitor;
 use crate::vault_encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
 use anyhow::Context;
-use clap::{arg, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use colored::Colorize;
 use log::{debug, error};
@@ -16,6 +17,7 @@ use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use walkdir::WalkDir;
 
+mod list_selector;
 mod properties_visitor;
 mod vault_encryption;
 mod vault_secrets;
@@ -70,20 +72,20 @@ fn main() {
         log4rs::init_config(release_log_config(&args.verbose)).unwrap();
     }
 
-    let (secrets_files, vault) = match resolve_files(&args.command) {
+    let (secrets_file, vault) = match resolve_file(&args.command) {
         Err(err) => {
             error!("Error resolving project: {}", err);
             exit(1);
         }
-        Ok((secrets_files, vault)) => (secrets_files, vault),
+        Ok((secrets_file, vault)) => (secrets_file, vault),
     };
 
     let decrypt = Box::new(VaultEncryption::new(vault));
     let visitor = PropertiesVisitor::new(decrypt);
     if args.edit {
-        see_and_edit_properties(secrets_files, visitor);
+        see_and_edit_properties(secrets_file, visitor);
     } else {
-        print_properties(secrets_files, visitor, args.color);
+        print_properties(secrets_file, visitor, args.color);
     }
 }
 
@@ -101,7 +103,7 @@ fn release_log_config(verbosity: &Verbosity) -> Config {
         .unwrap()
 }
 
-fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
+fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
     match &command {
         Commands::Project {
             inventory_name,
@@ -112,7 +114,7 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
                 .filter_map(|e| e.ok())
                 .find(|e| "ansible.cfg".eq_ignore_ascii_case(e.file_name().to_str().unwrap()))
                 .ok_or(anyhow!("Could not find ansible.cfg"))?;
-            let ansible_dir = &ansible_cfg_dir.path().parent().unwrap();
+            let ansible_dir = ansible_cfg_dir.path().parent().unwrap();
             debug!("Ansible dir is {}", &ansible_dir.display());
             let vault = VaultSecrets::from_config(ansible_cfg_dir.path())?;
             let group_vars = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
@@ -124,20 +126,25 @@ fn resolve_files(command: &Commands) -> Result<(Vec<PathBuf>, VaultSecrets)> {
                     host_vars.display()
                 ));
             }
-            let vars: Vec<PathBuf> = find_var_files(&group_vars)
+            let v_files: Vec<PathBuf> = find_var_files(&group_vars)
                 .iter()
                 .chain(find_var_files(&host_vars).iter())
                 .cloned()
                 .collect();
-            Ok((vars, vault))
+
+            let ls = SimpleListSelector::new(PathBuf::from(ansible_dir));
+            let file = match ls.select_one(v_files) {
+                Some(file) => file,
+                None => return Err(anyhow!("Could not find any file")),
+            };
+            Ok((file, vault))
         }
         Commands::Single {
             secrets_file,
             vault_password_file,
         } => {
             let vault = VaultSecrets::from_path(vault_password_file)?;
-            let files = vec![secrets_file.clone()];
-            Ok((files, vault))
+            Ok((secrets_file.clone(), vault))
         }
     }
 }
@@ -158,74 +165,70 @@ fn find_var_files(path: &Path) -> Vec<PathBuf> {
     not_dirs
 }
 
-fn print_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor, color: bool) {
-    for path in paths {
-        println!("-----{}-----", path.display());
-        let content = fs::read_to_string(&path).unwrap();
-        match visitor.visit_unvaulting(&content) {
-            Err(err) => {
-                error!("Error parsing secrets' file: {:?}", err);
-                exit(1);
-            }
-            Ok(res) => {
-                serde_yaml::to_string(&res)
-                    .unwrap()
-                    .split('\n')
-                    .for_each(|l| {
-                        if color && l.contains("<vaulted>") {
-                            let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
-                            println!("{}{}", split[0], split[1].color("green"))
-                        } else {
-                            println!("{}", l)
-                        }
-                    });
-            }
+fn print_properties(path: PathBuf, visitor: PropertiesVisitor, color: bool) {
+    println!("-----{}-----", path.display());
+    let content = fs::read_to_string(&path).unwrap();
+    match visitor.visit_unvaulting(&content) {
+        Err(err) => {
+            error!("Error parsing secrets' file: {:?}", err);
+            exit(1);
+        }
+        Ok(res) => {
+            serde_yaml::to_string(&res)
+                .unwrap()
+                .split('\n')
+                .for_each(|l| {
+                    if color && l.contains("<vaulted>") {
+                        let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
+                        println!("{}{}", split[0], split[1].color("green"))
+                    } else {
+                        println!("{}", l)
+                    }
+                });
         }
     }
 }
 
-fn see_and_edit_properties(paths: Vec<PathBuf>, visitor: PropertiesVisitor) {
-    for path in paths {
-        let content = fs::read_to_string(&path).unwrap();
-        match visitor.visit_unvaulting(&content) {
-            Err(err) => {
-                error!("Error parsing secrets' file: {:?}", err);
-                exit(1);
+fn see_and_edit_properties(path: PathBuf, visitor: PropertiesVisitor) {
+    let content = fs::read_to_string(&path).unwrap();
+    match visitor.visit_unvaulting(&content) {
+        Err(err) => {
+            error!("Error parsing secrets' file: {:?}", err);
+            exit(1);
+        }
+        Ok(res) => {
+            let properties = serde_yaml::to_string(&res).unwrap();
+            let starting_md5 = md5::compute(&properties);
+
+            let mut temp = PathBuf::from("/tmp");
+            let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
+            rev_vars_folder.iter().rev().for_each(|rel| temp.push(rel));
+            fs::create_dir_all(temp.parent().unwrap()).unwrap();
+            fs::write(&temp, properties).expect("Could not write file");
+
+            let mut editor = Command::new("editor")
+                .arg(temp.as_os_str())
+                .spawn()
+                .expect("Could not execute editor");
+
+            editor.wait().unwrap();
+            let modified_content = fs::read_to_string(&temp).unwrap();
+            let modified_md5 = md5::compute(&modified_content);
+            if starting_md5.eq(&modified_md5) {
+                return;
             }
-            Ok(res) => {
-                let properties = serde_yaml::to_string(&res).unwrap();
-                let starting_md5 = md5::compute(&properties);
 
-                let mut temp = PathBuf::from("/tmp");
-                let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
-                rev_vars_folder.iter().rev().for_each(|rel| temp.push(rel));
-                fs::create_dir_all(temp.parent().unwrap()).unwrap();
-                fs::write(&temp, properties).expect("Could not write file");
-
-                let mut editor = Command::new("editor")
-                    .arg(temp.as_os_str())
-                    .spawn()
-                    .expect("Could not execute editor");
-
-                editor.wait().unwrap();
-                let modified_content = fs::read_to_string(&temp).unwrap();
-                let modified_md5 = md5::compute(&modified_content);
-                if starting_md5.eq(&modified_md5) {
-                    continue;
+            match visitor.visit_vaulting(&modified_content) {
+                Err(err) => {
+                    error!("Error parsing new file: {:?}", err);
+                    exit(1);
                 }
-
-                match visitor.visit_vaulting(&modified_content) {
-                    Err(err) => {
-                        error!("Error parsing new file: {:?}", err);
-                        exit(1);
-                    }
-                    Ok(res) => {
-                        let vaulted = serde_yaml::to_string(&res).unwrap();
-                        fs::write(&path, vaulted).unwrap();
-                    }
+                Ok(res) => {
+                    let vaulted = serde_yaml::to_string(&res).unwrap();
+                    fs::write(&path, vaulted).unwrap();
                 }
-                fs::remove_file(&temp).unwrap();
             }
+            fs::remove_file(&temp).unwrap();
         }
     }
 }
