@@ -1,11 +1,10 @@
-use std::collections::{BTreeMap, HashMap};
 use anyhow::{anyhow, Result};
+use std::collections::BTreeMap;
 use std::fs;
-use std::iter::Map;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
-use crate::list_selector::{ListSelector, SimpleListSelector};
+use crate::list_selector::{ListSelector, TuiListSelector};
 use crate::properties_visitor::PropertiesVisitor;
 use crate::vault_encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
@@ -13,7 +12,7 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use colored::Colorize;
-use log::{debug, error};
+use log::{debug, error, info};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
@@ -119,9 +118,10 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
                 .ok_or(anyhow!("Could not find ansible.cfg"))?;
             let ansible_dir = ansible_cfg_dir.path().parent().unwrap();
             debug!("Ansible dir is {}", &ansible_dir.display());
+            let work_dir = ansible_dir.join(format!("inventories/{}", inventory_name));
             let vault = VaultSecrets::from_config(ansible_cfg_dir.path())?;
-            let group_vars = ansible_dir.join(format!("inventories/{}/group_vars", inventory_name));
-            let host_vars = ansible_dir.join(format!("inventories/{}/host_vars", inventory_name));
+            let group_vars = work_dir.join("group_vars");
+            let host_vars = work_dir.join("host_vars");
             if !Path::exists(&group_vars) && !Path::exists(&host_vars) {
                 return Err(anyhow!(
                     "Could not find neither '{}' nor '{}'",
@@ -132,13 +132,21 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
             let v_files: BTreeMap<String, PathBuf> = find_var_files(&group_vars)
                 .iter()
                 .chain(find_var_files(&host_vars).iter())
-                .map(|f| (f.strip_prefix(ansible_dir).unwrap().display().to_string(), f.clone()))
+                .map(|f| {
+                    (
+                        f.strip_prefix(&work_dir).unwrap().display().to_string(),
+                        f.clone(),
+                    )
+                })
                 .collect();
-
-            let ls = SimpleListSelector::new();
+            
+            let ls = TuiListSelector::new();
             let file = match ls.select_one(v_files) {
                 Some(file) => file,
-                None => return Err(anyhow!("Could not find any file")),
+                None => {
+                    info!("No file selected, exiting");
+                    exit(0);
+                }
             };
             Ok((file, vault))
         }
