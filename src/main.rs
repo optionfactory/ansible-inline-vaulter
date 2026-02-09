@@ -139,12 +139,12 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
                     )
                 })
                 .collect();
-            
+
             let ls = TuiListSelector::new();
             let file = match ls.select_one(v_files) {
                 Some(file) => file,
                 None => {
-                    info!("No file selected, exiting");
+                    info!("No file selected");
                     exit(0);
                 }
             };

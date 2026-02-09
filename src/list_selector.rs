@@ -73,7 +73,7 @@ impl TuiListSelector {
         let [top, first] = frame.area().layout(&layout);
 
         let title = Line::from_iter([
-            Span::from("Select file to edit").bold(),
+            Span::from("Select file").bold(),
             Span::from(" (Press 'q' to quit and arrow keys to navigate)"),
         ]);
         frame.render_widget(title.centered(), top);
