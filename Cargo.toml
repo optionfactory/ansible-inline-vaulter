@@ -1,6 +1,6 @@
 [package]
 name = "ansible-inline-vaulter"
-version = "0.4.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Enrico Falanga <enrico.falanga@optionfactory.net>"]
 
