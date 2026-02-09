@@ -1,5 +1,7 @@
+use std::collections::{BTreeMap, HashMap};
 use anyhow::{anyhow, Result};
 use std::fs;
+use std::iter::Map;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
@@ -15,8 +17,8 @@ use log::{debug, error};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
+use uuid::Uuid;
 use walkdir::WalkDir;
-use uuid::{Uuid};
 
 mod list_selector;
 mod properties_visitor;
@@ -127,13 +129,13 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
                     host_vars.display()
                 ));
             }
-            let v_files: Vec<PathBuf> = find_var_files(&group_vars)
+            let v_files: BTreeMap<String, PathBuf> = find_var_files(&group_vars)
                 .iter()
                 .chain(find_var_files(&host_vars).iter())
-                .cloned()
+                .map(|f| (f.strip_prefix(ansible_dir).unwrap().display().to_string(), f.clone()))
                 .collect();
 
-            let ls = SimpleListSelector::new(PathBuf::from(ansible_dir));
+            let ls = SimpleListSelector::new();
             let file = match ls.select_one(v_files) {
                 Some(file) => file,
                 None => return Err(anyhow!("Could not find any file")),

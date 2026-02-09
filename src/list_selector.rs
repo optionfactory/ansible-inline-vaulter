@@ -1,28 +1,28 @@
-use std::path::PathBuf;
+use std::collections::{BTreeMap, HashMap};
+use std::hash::Hash;
+use std::path::{Path, PathBuf};
 use text_io::read;
 
 pub trait ListSelector {
-    fn select_one(&self, files: Vec<PathBuf>) -> Option<PathBuf>;
+    fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Option<PathBuf>;
 }
 
-pub struct SimpleListSelector {
-    prefix: PathBuf,
-}
+pub struct SimpleListSelector {}
 
 impl SimpleListSelector {
-    pub fn new(prefix: PathBuf) -> SimpleListSelector {
-        SimpleListSelector { prefix }
+    pub fn new() -> SimpleListSelector {
+        SimpleListSelector {}
     }
 }
 
 impl ListSelector for SimpleListSelector {
-    fn select_one(&self, files: Vec<PathBuf>) -> Option<PathBuf> {
+    fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Option<PathBuf> {
         if files.is_empty() {
             return None;
         }
 
         if files.len() == 1 {
-            return Some(files[0].clone());
+            return Some(files.values().next().unwrap().clone());
         }
 
         println!("Pick one:");
@@ -31,7 +31,7 @@ impl ListSelector for SimpleListSelector {
                 format!(
                     "{} - {}",
                     i,
-                    files[i].strip_prefix(&self.prefix).unwrap().display()
+                    files.keys().nth(i).unwrap()
                 )
             })
             .for_each(|e| println!("{}", e));
@@ -47,7 +47,7 @@ impl ListSelector for SimpleListSelector {
                 }
                 Err(_) => continue,
             };
-            return Some(files[i].clone());
+            return Some(files.values().nth(i).unwrap().clone());
         }
     }
 }
