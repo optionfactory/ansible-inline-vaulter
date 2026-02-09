@@ -44,7 +44,7 @@ struct Args {
 enum Commands {
     /// View or edit all the properties of a given inventory (e.g. 'prod') of a given directory
     Project {
-        /// View or edit all inline secrets of all files into inventories/<inventory_name>/group_vars/ and subfolders
+        /// View or edit all inline secrets of all files into inventories/<inventory_name>/ and subfolders
         #[arg(short, long)]
         inventory_name: String,
         /// Directory containing Ansible files (e.g. ansible.cfg, inventories/)
