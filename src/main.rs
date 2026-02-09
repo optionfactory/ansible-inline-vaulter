@@ -16,6 +16,7 @@ use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use walkdir::WalkDir;
+use uuid::{uuid, Uuid};
 
 mod list_selector;
 mod properties_visitor;
@@ -199,8 +200,7 @@ fn see_and_edit_properties(path: PathBuf, visitor: PropertiesVisitor) {
         Ok(res) => {
             let properties = serde_yaml::to_string(&res).unwrap();
             let starting_md5 = md5::compute(&properties);
-
-            let mut temp = PathBuf::from("/tmp");
+            let mut temp = PathBuf::from(format!("/tmp/inline_vaulter/{}", Uuid::new_v4()));
             let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
             rev_vars_folder.iter().rev().for_each(|rel| temp.push(rel));
             fs::create_dir_all(temp.parent().unwrap()).unwrap();
