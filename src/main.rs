@@ -16,7 +16,7 @@ use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use walkdir::WalkDir;
-use uuid::{uuid, Uuid};
+use uuid::{Uuid};
 
 mod list_selector;
 mod properties_visitor;
