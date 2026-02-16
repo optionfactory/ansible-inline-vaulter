@@ -38,7 +38,7 @@ impl Encryption for VaultEncryption {
             s,
             self.vault
                 .get_no_id()
-                .ok_or(anyhow!("No id-less vault file"))?,
+                .ok_or(anyhow!("Missing vault file with no id, cannot decrypt property"))?,
         )
     }
 
@@ -57,7 +57,7 @@ impl Encryption for VaultEncryption {
             s,
             self.vault
                 .get_no_id()
-                .ok_or(anyhow!("No id-less vault file"))?,
+                .ok_or(anyhow!("Missing vault file with no id, cannot encrypt property"))?,
             None,
         )
     }
