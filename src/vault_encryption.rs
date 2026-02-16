@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use ansible_vault::{decrypt_vault, encrypt_vault};
+use ansible_vault::{decrypt, encrypt_vault};
 use anyhow::{anyhow, Result};
 
 use crate::vault_secrets::VaultSecrets;
@@ -85,8 +85,6 @@ fn do_encrypt(
     Ok(format!("{};{}\n{}", split.0, vault_id.unwrap(), split.1))
 }
 
-const VAULT_1_1_PREFIX: &str = "$ANSIBLE_VAULT;1.1;AES256";
-
 fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {
     if !vault_secret_file.is_file() {
         return Err(anyhow!(
@@ -96,21 +94,7 @@ fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {
     }
     let binding = fs::read_to_string(vault_secret_file)?;
     let secret = binding.trim();
-    //Ugly but the library does not allow for the header to have a vault id such as: $ANSIBLE_VAULT;1.1;AES256;{vaultID}
-    let first = to_decrypt
-        .lines()
-        .next()
-        .ok_or(anyhow!("Can't iterate on fist line"))?;
-    let ready = match first {
-        VAULT_1_1_PREFIX => to_decrypt.to_owned(),
-        _ => {
-            let stripped = to_decrypt
-                .strip_prefix(first)
-                .ok_or(anyhow!("Can't strip prefix"))?;
-            let formatted = format!("{}\n{}", VAULT_1_1_PREFIX, stripped);
-            formatted
-        }
-    };
-    let a = decrypt_vault(ready.as_bytes(), secret);
-    Ok(String::from_utf8(a?)?)
+    let payload: String = to_decrypt.lines().skip(1).collect();
+    let res = decrypt(payload.as_bytes(), secret);
+    Ok(String::from_utf8(res?)?)
 }
