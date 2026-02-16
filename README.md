@@ -23,14 +23,24 @@ Options:
 -V, --version     Print version
 ```
 
-Encrypted properties are indicated by the prefix `<vaulted>` followed by the unencrypted text. When the file is closed,
-prefixed properties are automatically encrypted.
+Encrypted properties are in the form: `<vaulted>[<id:someId>]unencryptedText`.
 
-- In edit mode, to remove the encryption from a property and see it in clear-text, remove the prefix `<vaulted>` and
+When the file is closed, prefixed properties are automatically encrypted with the correct key.
+
+- If `<id:...>` prefix is present after `<vaulted>`, then the key is taken from the vault file corresponding to that id, as specified in `ansible.cfg` -> `vault_identity_list`. E.g.:
+  - `vault_identity_list = myId@~/.vault/myVaultFile`
+- If only the prefix `<vaulted>` is present, the key is taken from the vault file specified in `ansible.cfg` -> `vault_password_file`. E.g.:
+  - `vault_password_file = ~/.vault/myVaultFile`
+
+In edit mode:
+
+- To remove the encryption from a property and see it in clear-text, remove the prefix `<vaulted>[<id:someId>]` and
   save.
-- In edit mode, to encrypt a clear-text property, add the prefix `<vaulted>` and save.
+- To encrypt a clear-text property, add the prefix `<vaulted>[<id:someId>]` and save. The encryption will fail if:
+  - `<id:...>` is present but no file corresponding to that id was specified in `vault_identity_list` or found;
+  - Only `<vaulted>` is present but no `vault_password_file` was specified or the file not found.
 
-The prefix `<vaulted>` only visually marks the encrypted property and does not become part of the property itself.
+The prefix `<vaulted>[<id:someId>]` only visually marks the encrypted property and does not become part of the property itself.
 
 Example:
 
