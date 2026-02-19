@@ -115,7 +115,7 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
             let ansible_cfg_dir = WalkDir::new(project_dir)
                 .into_iter()
                 .filter_map(|e| e.ok())
-                .find(|e| "ansible.cfg".eq_ignore_ascii_case(e.file_name().to_str().unwrap()))
+                .find(|e| OsString::from("ansible.cfg").eq_ignore_ascii_case(e.file_name()))
                 .ok_or(anyhow!("Could not find ansible.cfg"))?;
             let ansible_dir = ansible_cfg_dir.path().parent().unwrap();
             debug!("Ansible dir is {}", &ansible_dir.display());
