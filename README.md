@@ -1,6 +1,6 @@
 # README
 
-Easily view or edit secret properties using Ansible inline vaulting
+View or edit secret properties using Ansible inline vaulting
 
 Usage: `ansible-inline-vaulter [OPTIONS] <COMMAND>`
 
@@ -22,6 +22,26 @@ Options:
 -h, --help        Print help
 -V, --version     Print version
 ```
+
+## Project structure
+An example of the expected project structure (the relevant bits) is:
+```text
+ansible/
+|- ansible.cfg
+|- inventories/
+|  |- dev/
+|  |  |- group_vars/
+|  |  |  |- all.yml
+|  |  |- host_vars/
+|  |  |  |- dev.yml
+|  |- prod/
+|  |  |- group_vars/
+|  |  |  |- all.yml
+```
+
+With the `project -i dev` command, the tool will look for all YAML files in `inventories/dev/` and subfolders. It will also look for an `ansible.cfg` in the base directory (see example bolow).
+
+## Notes
 
 Encrypted properties are in the form: `<vaulted>[<id:someId>]unencryptedText`.
 
