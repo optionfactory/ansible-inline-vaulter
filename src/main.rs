@@ -185,7 +185,7 @@ fn print_properties(path: PathBuf, visitor: PropertiesVisitor, color: bool) {
             exit(1);
         }
         Ok(res) => {
-            serde_yaml::to_string(&res)
+            serde_yaml_ng::to_string(&res)
                 .unwrap()
                 .split('\n')
                 .for_each(|l| {
@@ -208,7 +208,7 @@ fn see_and_edit_properties(path: PathBuf, visitor: PropertiesVisitor) {
             exit(1);
         }
         Ok(res) => {
-            let properties = serde_yaml::to_string(&res).unwrap();
+            let properties = serde_yaml_ng::to_string(&res).unwrap();
             let starting_md5 = md5::compute(&properties);
             let mut temp = PathBuf::from(format!("/tmp/inline_vaulter/{}", Uuid::new_v4()));
             let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
@@ -234,7 +234,7 @@ fn see_and_edit_properties(path: PathBuf, visitor: PropertiesVisitor) {
                     exit(1);
                 }
                 Ok(res) => {
-                    let vaulted = serde_yaml::to_string(&res).unwrap();
+                    let vaulted = serde_yaml_ng::to_string(&res).unwrap();
                     fs::write(&path, vaulted).unwrap();
                 }
             }
