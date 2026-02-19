@@ -3,9 +3,9 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use log::{error, warn};
 use regex::Regex;
-use serde_yaml::value::{Tag, TaggedValue};
-use serde_yaml::{Mapping, Value};
 use std::process::exit;
+use serde_yaml_ng::{Mapping, Value};
+use serde_yaml_ng::value::{Tag, TaggedValue};
 
 pub struct PropertiesVisitor {
     encryption: Box<dyn Encryption>,
@@ -21,12 +21,12 @@ impl PropertiesVisitor {
     }
 
     pub fn visit_unvaulting(&self, content: &str) -> Result<Value> {
-        let des: Value = serde_yaml::from_str(content)?;
+        let des: Value = serde_yaml_ng::from_str(content)?;
         Ok(self.do_visit_unvaulting(&des))
     }
 
     pub fn visit_vaulting(&self, content: &str) -> Result<Value> {
-        let des: Value = serde_yaml::from_str(content)?;
+        let des: Value = serde_yaml_ng::from_str(content)?;
         Ok(self.do_visit_vaulting(&des))
     }
 
@@ -165,6 +165,7 @@ fn extract_vault_id_unvaulting(value: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use serde_yaml_ng::Value;
     use crate::properties_visitor::{
         extract_vault_id_unvaulting, extract_vault_id_vaulting, IdProperty,
     };
