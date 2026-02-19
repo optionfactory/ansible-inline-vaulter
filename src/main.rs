@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
@@ -166,14 +167,27 @@ fn find_var_files(path: &Path) -> Vec<PathBuf> {
     }
     debug!("Found '{}'", path.display());
     let read_dir = fs::read_dir(path).unwrap();
-    let files: Vec<PathBuf> = read_dir.into_iter().map(|p| p.unwrap().path()).collect();
-    let mut not_dirs: Vec<PathBuf> = files.clone().into_iter().filter(|f| !f.is_dir()).collect();
-
-    for file in files.into_iter().filter(|f| f.is_dir()) {
-        not_dirs.append(&mut find_var_files(&file))
+    let paths: Vec<PathBuf> = read_dir
+        .into_iter()
+        .map(|p| p.unwrap().path())
+        .filter(|p| p.is_file())
+        .collect();
+    let mut files: Vec<PathBuf> = paths
+        .clone()
+        .into_iter()
+        .filter(|f| {
+            f.is_file()
+                && f.extension().is_some_and(|ext| {
+                    OsString::from("yml").eq_ignore_ascii_case(ext)
+                        || OsString::from("yaml").eq_ignore_ascii_case(ext)
+                })
+        })
+        .collect();
+    for path in paths.into_iter().filter(|f| f.is_dir()) {
+        files.append(&mut find_var_files(&path))
     }
 
-    not_dirs
+    files
 }
 
 fn print_properties(path: PathBuf, visitor: PropertiesVisitor, color: bool) {
