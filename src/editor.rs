@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::Command;
 use std::{env, fs};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use tempfile::Builder;
 
 pub struct Editor {
@@ -73,14 +73,22 @@ impl Editor {
         }
     }
 
-    fn open_in_editor(&self, file_path: &Path) -> std::io::Result<()> {
+    fn open_in_editor(&self, file_path: &Path) -> Result<()> {
         let editor_cmd = get_editor(self.editor_path.clone());
-        Command::new("sh")
-            .arg("-c")
-            .arg(format!("{} \"$1\"", editor_cmd))
-            .arg("--")
+
+        let words = shell_words::split(&editor_cmd)
+            .map_err(|err| anyhow!("Error parsing editor command: {:?}", err))?;
+        let (program, args) = words
+            .split_first()
+            .ok_or_else(|| anyhow!("Editor command is empty"))?;
+        let status = Command::new(program)
+            .args(args)
             .arg(file_path)
-            .status()?;
+            .status()
+            .context(format!("Error executing command: {}", program))?;
+        if !status.success() {
+            return Err(anyhow!("Editor command failed with status: {:?}", status));
+        }
         Ok(())
     }
 }

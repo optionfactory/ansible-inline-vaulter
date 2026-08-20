@@ -86,11 +86,15 @@ fn main() {
     let mode = args.edit.is_some();
     let editor = Editor::new(visitor, args.edit.flatten(), args.color);
     if mode {
-        editor.edit(&secrets_file).expect("Error editing properties");
+        if let Err(e) = editor.edit(&secrets_file) {
+            error!("Error editing properties: {}", e);
+            exit(1);
+        }
     } else {
-        editor
-            .print(&secrets_file)
-            .expect("Error printing properties");
+        if let Err(e) = editor.print(&secrets_file) {
+            error!("Error printing properties: {}", e);
+            exit(1);
+        }
     }
 }
 
