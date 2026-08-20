@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use lazy_static::lazy_static;
 use log::debug;
 use regex::Regex;
 use std::collections::HashMap;
@@ -19,7 +20,6 @@ impl VaultSecrets {
 
         let vault_ids: HashMap<String, PathBuf> = parse_ids(&cfg)
             .iter()
-            .flat_map(|m| m.iter())
             .map(|(k, v)| (k, shellexpand::tilde(v).to_string()))
             .map(|(k, v)| (k.clone(), PathBuf::from(v)))
             .collect();
@@ -53,34 +53,45 @@ impl VaultSecrets {
     }
 }
 
+lazy_static! {
+    static ref PASSWORD_FILE_REGEX: Regex =
+        Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap();
+}
+
 fn parse_no_id(cfg: &str) -> Option<String> {
-    let regex: Regex = Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap();
-    regex.captures(cfg)?.name("file").map(|m| {
+    PASSWORD_FILE_REGEX.captures(cfg)?.name("file").map(|m| {
         let file = m.as_str().to_owned();
         debug!("Found vault_password_file property with value: '{}'", file);
         file
     })
 }
 
-fn parse_ids(cfg: &str) -> Option<HashMap<String, String>> {
-    let regex: Regex = Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap();
-    regex
-        .captures(cfg)?
-        .name("file_list")
-        .map(|m| {
-            let ids = m.as_str();
+lazy_static! {
+    static ref IDENTITY_LIST_REGEX: Regex =
+        Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap();
+}
+
+fn parse_ids(cfg: &str) -> HashMap<String, String> {
+    match IDENTITY_LIST_REGEX.captures(cfg) {
+        None => HashMap::new(),
+        Some(c) => {
+            let list = c.name("file_list").unwrap();
+            let ids = list.as_str();
             debug!("Found vault_identity_list property with value: '{}'", ids);
-            ids
-        })
-        .map(|s| s.split(',').collect::<Vec<&str>>())
-        .map(|v| {
-            v.iter()
+            let split_commas = ids.split(',').collect::<Vec<&str>>();
+            split_commas
+                .iter()
                 .map(|&s| {
-                    let (label, path) = s.split_once('@').unwrap();
-                    (label.to_owned(), path.to_owned())
+                    if let Some((label, path)) = s.split_once('@') {
+                        Some((label.to_owned(), path.to_owned()))
+                    } else {
+                        None
+                    }
                 })
+                .flat_map(|x| x)
                 .collect()
-        })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -138,7 +149,42 @@ vault_identity_list = asd@~/.vault/asd,qwerty@~/.vault/qwerty
 
         let act = parse_ids(cfg);
 
-        assert_eq!(exp, act.unwrap());
+        assert_eq!(exp, act);
+    }
+
+    #[test]
+    fn test_ids_malformed() {
+        let cfg = r#"
+[ssh_connection]
+pipelining = True
+retries = 2
+
+[defaults]
+vault_identity_list = asd
+"#;
+
+        let act = parse_ids(cfg);
+
+        assert!(act.is_empty());
+    }
+
+    #[test]
+    fn test_ids_split_once() {
+        let cfg = r#"
+[ssh_connection]
+pipelining = True
+retries = 2
+
+[defaults]
+vault_identity_list = asd@~/.vault/@asd
+"#;
+        let exp = HashMap::from([
+            (String::from("asd"), String::from("~/.vault/@asd")),
+        ]);
+
+        let act = parse_ids(cfg);
+
+        assert_eq!(exp, act);
     }
 
     #[test]
@@ -153,6 +199,6 @@ retries = 2
 
         let act = parse_ids(cfg);
 
-        assert!(act.is_none())
+        assert!(act.is_empty())
     }
 }
