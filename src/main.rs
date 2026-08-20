@@ -1,25 +1,24 @@
-use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command};
+use std::process::exit;
 
+use crate::editor::Editor;
 use crate::list_selector::{ListSelector, TuiListSelector};
 use crate::properties_visitor::PropertiesVisitor;
 use crate::vault_encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
-use colored::Colorize;
 use log::{debug, error, info};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
-use uuid::Uuid;
 use walkdir::WalkDir;
 
+mod editor;
 mod list_selector;
 mod properties_visitor;
 mod vault_encryption;
@@ -27,13 +26,13 @@ mod vault_secrets;
 
 #[derive(Parser, Debug)]
 #[command(author = "Enrico Falanga", version, about)]
-/// Easily view or edit secret properties using Ansible inline vaulting
+/// View or edit secret properties using Ansible inline vaulting
 struct Args {
     #[command(flatten)]
     verbose: clap_verbosity_flag::Verbosity,
-    /// Edit on default editor or just print to stdout
-    #[arg(short, long, default_value_t = false)]
-    edit: bool,
+    /// Edit mode: optionally specify the editor path (e.g., -e or -e /usr/bin/nvim)
+    #[arg(short, long, num_args = 0..=1, value_name = "EDITOR", require_equals = true)]
+    edit: Option<Option<String>>,
     /// Highlight in color the vaulted properties when printing on stdout
     #[arg(short, long, default_value_t = false)]
     color: bool,
@@ -48,7 +47,7 @@ enum Commands {
         /// View or edit all inline secrets of all files into inventories/<inventory_name>/ and subfolders
         #[arg(short, long)]
         inventory_name: String,
-        /// Directory containing Ansible files (e.g. ansible.cfg, inventories/)
+        /// Directory containing Ansible files (e.g., ansible.cfg, inventories/)
         #[arg(short, long)]
         base_dir: PathBuf,
     },
@@ -69,15 +68,15 @@ fn main() {
     if cfg!(debug_assertions) {
         let log_config = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("log4rs.yaml");
         log4rs::init_file(&log_config, Default::default())
-            .context(format!("Error with '{:?}'", &log_config))
+            .context(format!("Error with '{:?}'", log_config))
             .unwrap();
     } else {
         log4rs::init_config(release_log_config(&args.verbose)).unwrap();
     }
 
-    let (secrets_file, vault) = match resolve_file(&args.command) {
+    let (secrets_file, vault) = match resolve_target(&args.command) {
         Err(err) => {
-            error!("Error resolving project: {}", err);
+            error!("Error resolving target: {}", err);
             exit(1);
         }
         Ok((secrets_file, vault)) => (secrets_file, vault),
@@ -85,10 +84,12 @@ fn main() {
 
     let decrypt = Box::new(VaultEncryption::new(vault));
     let visitor = PropertiesVisitor::new(decrypt);
-    if args.edit {
-        see_and_edit_properties(secrets_file, visitor);
+    let mode = args.edit.is_some();
+    let editor = Editor::new(visitor, args.edit.flatten(), args.color);
+    if mode {
+        editor.edit(secrets_file);
     } else {
-        print_properties(secrets_file, visitor, args.color);
+        editor.print(secrets_file);
     }
 }
 
@@ -106,7 +107,7 @@ fn release_log_config(verbosity: &Verbosity) -> Config {
         .unwrap()
 }
 
-fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
+fn resolve_target(command: &Commands) -> anyhow::Result<(PathBuf, VaultSecrets)> {
     match &command {
         Commands::Project {
             inventory_name,
@@ -130,9 +131,9 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
                     host_vars.display()
                 ));
             }
-            let v_files: BTreeMap<String, PathBuf> = find_var_files(&group_vars)
+            let v_files: BTreeMap<String, PathBuf> = find_files(&group_vars)
                 .iter()
-                .chain(find_var_files(&host_vars).iter())
+                .chain(find_files(&host_vars).iter())
                 .map(|f| {
                     (
                         f.strip_prefix(&work_dir).unwrap().display().to_string(),
@@ -161,7 +162,7 @@ fn resolve_file(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
     }
 }
 
-fn find_var_files(path: &Path) -> Vec<PathBuf> {
+fn find_files(path: &Path) -> Vec<PathBuf> {
     if !Path::exists(path) {
         return vec![];
     }
@@ -184,75 +185,8 @@ fn find_var_files(path: &Path) -> Vec<PathBuf> {
         })
         .collect();
     for path in paths.into_iter().filter(|f| f.is_dir()) {
-        files.append(&mut find_var_files(&path))
+        files.append(&mut find_files(&path))
     }
 
     files
-}
-
-fn print_properties(path: PathBuf, visitor: PropertiesVisitor, color: bool) {
-    println!("-----{}-----", path.display());
-    let content = fs::read_to_string(&path).unwrap();
-    match visitor.visit_unvaulting(&content) {
-        Err(err) => {
-            error!("Error parsing secrets' file: {:?}", err);
-            exit(1);
-        }
-        Ok(res) => {
-            serde_yaml_ng::to_string(&res)
-                .unwrap()
-                .split('\n')
-                .for_each(|l| {
-                    if color && l.contains("<vaulted>") {
-                        let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
-                        println!("{}{}", split[0], split[1].color("green"))
-                    } else {
-                        println!("{}", l)
-                    }
-                });
-        }
-    }
-}
-
-fn see_and_edit_properties(path: PathBuf, visitor: PropertiesVisitor) {
-    let content = fs::read_to_string(&path).unwrap();
-    match visitor.visit_unvaulting(&content) {
-        Err(err) => {
-            error!("Error parsing secrets' file: {:?}", err);
-            exit(1);
-        }
-        Ok(res) => {
-            let properties = serde_yaml_ng::to_string(&res).unwrap();
-            let starting_md5 = md5::compute(&properties);
-            let mut temp = PathBuf::from(format!("/tmp/inline_vaulter/{}", Uuid::new_v4()));
-            let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
-            rev_vars_folder.iter().rev().for_each(|rel| temp.push(rel));
-            fs::create_dir_all(temp.parent().unwrap()).unwrap();
-            fs::write(&temp, properties).expect("Could not write file");
-
-            let mut editor = Command::new("editor")
-                .arg(temp.as_os_str())
-                .spawn()
-                .expect("Could not execute editor");
-
-            editor.wait().unwrap();
-            let modified_content = fs::read_to_string(&temp).unwrap();
-            let modified_md5 = md5::compute(&modified_content);
-            if starting_md5.eq(&modified_md5) {
-                return;
-            }
-
-            match visitor.visit_vaulting(&modified_content) {
-                Err(err) => {
-                    error!("Error parsing new file: {:?}", err);
-                    exit(1);
-                }
-                Ok(res) => {
-                    let vaulted = serde_yaml_ng::to_string(&res).unwrap();
-                    fs::write(&path, vaulted).unwrap();
-                }
-            }
-            fs::remove_file(&temp).unwrap();
-        }
-    }
 }

@@ -1,6 +1,13 @@
 # README
 
-View or edit secret properties using Ansible inline vaulting
+View or edit secret properties using Ansible inline vaulting.
+
+The editor used is resolved in the following order:
+- Editor specified by `-e=<path>` or `--edit=<path>`.
+- `ANSIBLE_INLINE_VAULTER_EDITOR` environment variable.
+- `VISUAL` environment variable.
+- `EDITOR` environment variable.
+- `vi`.
 
 Usage: `ansible-inline-vaulter [OPTIONS] <COMMAND>`
 
@@ -17,7 +24,7 @@ Options:
 ```terminaloutput
 -v, --verbose...  Increase logging verbosity
 -q, --quiet...    Decrease logging verbosity
--e, --edit        Edit on default editor or just print to stdout
+-e, --edit[=<EDITOR>]  Edit mode: optionally specify the editor path (e.g., -e or -e /usr/bin/nvim)
 -c, --color       Highlight in color the vaulted properties when printing on stdout
 -h, --help        Print help
 -V, --version     Print version
@@ -85,7 +92,7 @@ Options:
 ```
 
 ```terminaloutput
-$ ansible-inline-vaulter -evv project -i dev -b myProject/infrastructure/ansible
+$ ansible-inline-vaulter -e project -i dev -b myProject/infrastructure/ansible
 ```
 
 ```yaml
