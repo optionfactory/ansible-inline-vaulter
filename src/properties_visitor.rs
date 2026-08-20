@@ -10,7 +10,7 @@ pub struct PropertiesVisitor {
     encryption: Box<dyn Encryption>,
 }
 
-static PREFIX: &str = "<vaulted>";
+pub static INFIX: &str = "<vaulted>";
 
 impl PropertiesVisitor {
     pub fn new(decrypt: Box<dyn Encryption>) -> Self {
@@ -47,11 +47,11 @@ impl PropertiesVisitor {
                         let with_prefix = if let Some(id) = extract_vault_id_unvaulting(str) {
                             self.encryption
                                 .decrypt_with_id(str.trim(), id.as_ref())
-                                .map(|res| format!("{}<id:{}>{}", PREFIX, id, res))
+                                .map(|res| format!("{}<id:{}>{}", INFIX, id, res))
                         } else {
                             self.encryption
                                 .decrypt_no_id(str.trim())
-                                .map(|res| format!("{}{}", PREFIX, res))
+                                .map(|res| format!("{}{}", INFIX, res))
                         };
 
                         match with_prefix {
@@ -89,10 +89,10 @@ impl PropertiesVisitor {
                 Value::from(mapping)
             }
             Value::String(str) => {
-                if !str.starts_with(PREFIX) {
+                if !str.starts_with(INFIX) {
                     return val.clone();
                 }
-                let no_prefix = str.strip_prefix(PREFIX).unwrap();
+                let no_prefix = str.strip_prefix(INFIX).unwrap();
                 let vaulted = if let Some(id_property) = extract_vault_id_vaulting(no_prefix) {
                     self.encryption
                         .encrypt_with_id(id_property.stripped.trim(), id_property.id.as_ref())

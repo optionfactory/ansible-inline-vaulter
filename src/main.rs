@@ -123,7 +123,7 @@ fn resolve_target(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
                 .filter_map(|e| e.ok())
                 .find(|e| OsString::from("ansible.cfg").eq_ignore_ascii_case(e.file_name()))
                 .ok_or(anyhow!("Could not find ansible.cfg"))?;
-            let ansible_dir = ansible_cfg_dir.path().parent().unwrap();
+            let ansible_dir = ansible_cfg_dir.path().parent().ok_or(anyhow!("Could not resolve Ansible dir"))?;
             debug!("Ansible dir is {}", ansible_dir.display());
             let work_dir = ansible_dir.join(format!("inventories/{}", inventory_name));
             let vault = VaultSecrets::from_config(ansible_cfg_dir.path())?;

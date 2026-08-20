@@ -1,4 +1,4 @@
-use crate::properties_visitor::PropertiesVisitor;
+use crate::properties_visitor::{PropertiesVisitor, INFIX};
 use colored::Colorize;
 use std::path::Path;
 use std::process::Command;
@@ -24,14 +24,14 @@ impl Editor {
 
     pub fn print(&self, path: &Path) -> Result<()> {
         println!("-----{}-----", path.display());
-        let content = fs::read_to_string(&path)?;
+        let content = fs::read_to_string(path)?;
         match self.visitor.visit_unvaulting(&content) {
             Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
             Ok(res) => {
                 serde_yaml_ng::to_string(&res)?.lines().for_each(|l| {
-                    if self.color && l.contains("<vaulted>") {
-                        if let Some((prefix, secret)) = l.split_once("<vaulted>") {
-                            println!("{}<vaulted>{}", prefix, secret.color("green"))
+                    if self.color && l.contains(INFIX) {
+                        if let Some((prefix, secret)) = l.split_once(INFIX) {
+                            println!("{}{}{}", prefix, INFIX, secret.color("green"))
                         }
                     } else {
                         println!("{}", l)
@@ -43,7 +43,7 @@ impl Editor {
     }
 
     pub fn edit(&self, path: &Path) -> Result<()> {
-        let content = fs::read_to_string(&path)?;
+        let content = fs::read_to_string(path)?;
         match self.visitor.visit_unvaulting(&content) {
             Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
             Ok(res) => {
@@ -66,7 +66,7 @@ impl Editor {
                     Err(err) => Err(anyhow!("Error parsing new file: {:?}", err)),
                     Ok(res) => {
                         let vaulted = serde_yaml_ng::to_string(&res)?;
-                        fs::write(&path, vaulted)?;
+                        fs::write(path, vaulted)?;
                         Ok(())
                     }
                 }

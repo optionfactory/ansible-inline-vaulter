@@ -52,22 +52,22 @@ With the `project -i dev` command, the tool will look for all YAML files in `inv
 
 Encrypted properties are in the form: `<vaulted>[<id:someId>]unencryptedText`.
 
-When the file is closed, prefixed properties are automatically encrypted with the correct key.
+When the file is closed, `<vaulted>` properties are automatically encrypted with the correct key.
 
-- If `<id:...>` prefix is present after `<vaulted>`, then the key is taken from the vault file corresponding to that id, as specified in `ansible.cfg` -> `vault_identity_list`. E.g.:
+- If `<id:...>` is present after `<vaulted>`, then the key is taken from the vault file corresponding to that id, as specified in `ansible.cfg` -> `vault_identity_list`. E.g.:
   - `vault_identity_list = myId@~/.vault/myVaultFile`
-- If only the prefix `<vaulted>` is present, the key is taken from the vault file specified in `ansible.cfg` -> `vault_password_file`. E.g.:
+- If only the infix `<vaulted>` is present, the key is taken from the vault file specified in `ansible.cfg` -> `vault_password_file`. E.g.:
   - `vault_password_file = ~/.vault/myVaultFile`
 
 In edit mode:
 
-- To remove the encryption from a property and see it in clear-text, remove the prefix `<vaulted>[<id:someId>]` and
+- To remove the encryption from a property and see it in clear-text, remove the infix `<vaulted>[<id:someId>]` and
   save.
-- To encrypt a clear-text property, add the prefix `<vaulted>[<id:someId>]` and save. The encryption will fail if:
+- To encrypt a clear-text property, add the infix `<vaulted>[<id:someId>]` and save. The encryption will fail if:
   - `<id:...>` is present but no file corresponding to that id was specified in `vault_identity_list` or found;
   - Only `<vaulted>` is present but no `vault_password_file` was specified or the file not found.
 
-The prefix `<vaulted>[<id:someId>]` only visually marks the encrypted property and does not become part of the property itself.
+The infix `<vaulted>[<id:someId>]` only visually marks the encrypted property and does not become part of the property itself.
 
 Example:
 
