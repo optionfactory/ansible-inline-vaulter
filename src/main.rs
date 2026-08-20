@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
@@ -124,23 +123,35 @@ fn resolve_target(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
             debug!("Ansible dir is {}", &ansible_dir.display());
             let work_dir = ansible_dir.join(format!("inventories/{}", inventory_name));
             let vault = VaultSecrets::from_config(ansible_cfg_dir.path())?;
-            let group_vars = work_dir.join("group_vars");
-            let host_vars = work_dir.join("host_vars");
-            if !Path::exists(&group_vars) && !Path::exists(&host_vars) {
+            let group_vars_path = work_dir.join("group_vars");
+            let host_vars_path = work_dir.join("host_vars");
+            if !Path::exists(&group_vars_path) && !Path::exists(&host_vars_path) {
                 return Err(anyhow!(
                     "Could not find neither '{}' nor '{}'",
-                    group_vars.display(),
-                    host_vars.display()
+                    group_vars_path.display(),
+                    host_vars_path.display()
                 ));
             }
 
-            let v_files: BTreeMap<String, PathBuf> = find_files(&group_vars)?
-                .iter()
-                .chain(find_files(&host_vars)?.iter())
-                .map(|f| {
+            let v_files: BTreeMap<String, PathBuf> = WalkDir::new(group_vars_path)
+                .into_iter()
+                .chain(WalkDir::new(host_vars_path))
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    if let Some(name) = e.file_name().to_ascii_lowercase().to_str() {
+                        e.file_type().is_file() && (name.ends_with("yaml") || name.ends_with("yml"))
+                    } else {
+                        false
+                    }
+                })
+                .map(|e| {
                     (
-                        f.strip_prefix(&work_dir).unwrap().display().to_string(),
-                        f.clone(),
+                        e.path()
+                            .strip_prefix(&work_dir)
+                            .unwrap()
+                            .display()
+                            .to_string(),
+                        PathBuf::from(e.path()),
                     )
                 })
                 .collect();
@@ -163,33 +174,4 @@ fn resolve_target(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
             Ok((secrets_file.clone(), vault))
         }
     }
-}
-
-fn find_files(path: &Path) -> Result<Vec<PathBuf>> {
-    if !Path::exists(path) {
-        return Ok(vec![]);
-    }
-    debug!("Found '{}'", path.display());
-    let read_dir = fs::read_dir(path).context("Failed to read directory")?;
-    let paths: Vec<PathBuf> = read_dir
-        .into_iter()
-        .map(|p| p.unwrap().path())
-        .filter(|p| p.is_file())
-        .collect();
-    let mut files: Vec<PathBuf> = paths
-        .clone()
-        .into_iter()
-        .filter(|f| {
-            f.is_file()
-                && f.extension().is_some_and(|ext| {
-                    OsString::from("yml").eq_ignore_ascii_case(ext)
-                        || OsString::from("yaml").eq_ignore_ascii_case(ext)
-                })
-        })
-        .collect();
-    for path in paths.into_iter().filter(|f| f.is_dir()) {
-        files.append(&mut find_files(&path)?)
-    }
-
-    Ok(files)
 }
