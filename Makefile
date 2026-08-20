@@ -17,4 +17,4 @@ release-minor: INC=minor
 release-minor: _release
 
 _release: build-release
-	cargo release ${INC}
+	cargo release ${INC} --execute
