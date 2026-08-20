@@ -46,7 +46,7 @@ ansible/
 |  |  |  |- all.yml
 ```
 
-With the `project -i dev` command, the tool will look for all YAML files in `inventories/dev/` and subfolders. It will also look for an `ansible.cfg` in the base directory (see example bolow).
+With the `project -i dev` command, the tool will look for all YAML files in `inventories/dev/` and subfolders. It will also look for an `ansible.cfg` in the base directory (see example below).
 
 ## Notes
 
