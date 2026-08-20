@@ -3,6 +3,8 @@ name = "ansible-inline-vaulter"
 version = "0.4.0-alpha"
 edition = "2021"
 authors = ["Enrico Falanga <enrico.falanga@optionfactory.net>"]
+description = "View or edit secret properties using Ansible inline vaulting."
+license = "GPL-3"
 
 [dependencies]
 clap = { version = "4.6.6", features = ["derive"] }
@@ -20,3 +22,10 @@ ratatui = "0.30.0"
 crossterm = "0.29.0"
 tempfile = "3.27.0"
 shell-words = "1.1.1"
+
+[package.metadata.release]
+publish = false
+tag-prefix = "v"
+tag-name = "v{{version}}"
+pre-release-commit-message = "chore(release): version {{version}}"
+push = true
