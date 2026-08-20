@@ -1,6 +1,5 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossterm::event::{self, KeyCode};
-use log::warn;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Color, Modifier, Stylize};
 use ratatui::text::{Line, Span};
@@ -24,8 +23,7 @@ impl TuiListSelector {
 impl ListSelector for TuiListSelector {
     fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Result<Option<PathBuf>> {
         if files.is_empty() {
-            warn!("Could not find any file");
-            return Ok(None);
+            return Err(anyhow!("Could not find any file"));
         }
 
         if files.len() == 1 {

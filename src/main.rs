@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::exit;
 
 use crate::editor::Editor;
@@ -124,22 +124,12 @@ fn resolve_target(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
                 .find(|e| OsString::from("ansible.cfg").eq_ignore_ascii_case(e.file_name()))
                 .ok_or(anyhow!("Could not find ansible.cfg"))?;
             let ansible_dir = ansible_cfg_dir.path().parent().unwrap();
-            debug!("Ansible dir is {}", &ansible_dir.display());
+            debug!("Ansible dir is {}", ansible_dir.display());
             let work_dir = ansible_dir.join(format!("inventories/{}", inventory_name));
             let vault = VaultSecrets::from_config(ansible_cfg_dir.path())?;
-            let group_vars_path = work_dir.join("group_vars");
-            let host_vars_path = work_dir.join("host_vars");
-            if !Path::exists(&group_vars_path) && !Path::exists(&host_vars_path) {
-                return Err(anyhow!(
-                    "Could not find neither '{}' nor '{}'",
-                    group_vars_path.display(),
-                    host_vars_path.display()
-                ));
-            }
 
-            let v_files: BTreeMap<String, PathBuf> = WalkDir::new(group_vars_path)
+            let v_files: BTreeMap<String, PathBuf> = WalkDir::new(&work_dir)
                 .into_iter()
-                .chain(WalkDir::new(host_vars_path))
                 .filter_map(|e| e.ok())
                 .filter(|e| {
                     if let Some(name) = e.file_name().to_ascii_lowercase().to_str() {
