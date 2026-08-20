@@ -9,7 +9,7 @@ use crate::list_selector::{ListSelector, TuiListSelector};
 use crate::properties_visitor::PropertiesVisitor;
 use crate::vault_encryption::VaultEncryption;
 use crate::vault_secrets::VaultSecrets;
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 use log::{debug, error, info};
@@ -89,7 +89,9 @@ fn main() {
     if mode {
         editor.edit(secrets_file).expect("Error editing properties");
     } else {
-        editor.print(secrets_file).expect("Error printing properties");
+        editor
+            .print(secrets_file)
+            .expect("Error printing properties");
     }
 }
 
@@ -107,7 +109,7 @@ fn release_log_config(verbosity: &Verbosity) -> Config {
         .unwrap()
 }
 
-fn resolve_target(command: &Commands) -> anyhow::Result<(PathBuf, VaultSecrets)> {
+fn resolve_target(command: &Commands) -> Result<(PathBuf, VaultSecrets)> {
     match &command {
         Commands::Project {
             inventory_name,
@@ -131,9 +133,10 @@ fn resolve_target(command: &Commands) -> anyhow::Result<(PathBuf, VaultSecrets)>
                     host_vars.display()
                 ));
             }
-            let v_files: BTreeMap<String, PathBuf> = find_files(&group_vars)
+
+            let v_files: BTreeMap<String, PathBuf> = find_files(&group_vars)?
                 .iter()
-                .chain(find_files(&host_vars).iter())
+                .chain(find_files(&host_vars)?.iter())
                 .map(|f| {
                     (
                         f.strip_prefix(&work_dir).unwrap().display().to_string(),
@@ -143,7 +146,7 @@ fn resolve_target(command: &Commands) -> anyhow::Result<(PathBuf, VaultSecrets)>
                 .collect();
 
             let ls = TuiListSelector::new();
-            let file = match ls.select_one(v_files) {
+            let file = match ls.select_one(v_files)? {
                 Some(file) => file,
                 None => {
                     info!("No file selected");
@@ -162,12 +165,12 @@ fn resolve_target(command: &Commands) -> anyhow::Result<(PathBuf, VaultSecrets)>
     }
 }
 
-fn find_files(path: &Path) -> Vec<PathBuf> {
+fn find_files(path: &Path) -> Result<Vec<PathBuf>> {
     if !Path::exists(path) {
-        return vec![];
+        return Ok(vec![]);
     }
     debug!("Found '{}'", path.display());
-    let read_dir = fs::read_dir(path).unwrap();
+    let read_dir = fs::read_dir(path).context("Failed to read directory")?;
     let paths: Vec<PathBuf> = read_dir
         .into_iter()
         .map(|p| p.unwrap().path())
@@ -185,8 +188,8 @@ fn find_files(path: &Path) -> Vec<PathBuf> {
         })
         .collect();
     for path in paths.into_iter().filter(|f| f.is_dir()) {
-        files.append(&mut find_files(&path))
+        files.append(&mut find_files(&path)?)
     }
 
-    files
+    Ok(files)
 }

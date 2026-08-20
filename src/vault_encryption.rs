@@ -36,9 +36,9 @@ impl Encryption for VaultEncryption {
     fn decrypt_no_id(&self, s: &str) -> Result<String> {
         do_decrypt(
             s,
-            self.vault
-                .get_no_id()
-                .ok_or(anyhow!("Missing vault file with no id, cannot decrypt property"))?,
+            self.vault.get_no_id().ok_or(anyhow!(
+                "Missing vault file with no id, cannot decrypt property"
+            ))?,
         )
     }
 
@@ -55,9 +55,9 @@ impl Encryption for VaultEncryption {
     fn encrypt_no_id(&self, s: &str) -> Result<String> {
         do_encrypt(
             s,
-            self.vault
-                .get_no_id()
-                .ok_or(anyhow!("Missing vault file with no id, cannot encrypt property"))?,
+            self.vault.get_no_id().ok_or(anyhow!(
+                "Missing vault file with no id, cannot encrypt property"
+            ))?,
             None,
         )
     }
@@ -81,8 +81,11 @@ fn do_encrypt(
         return Ok(vaulted);
     }
 
-    let split = vaulted.split_once('\n').unwrap();
-    Ok(format!("{};{}\n{}", split.0, vault_id.unwrap(), split.1))
+    if let Some(split) = vaulted.split_once('\n') {
+        Ok(format!("{};{}\n{}", split.0, vault_id.unwrap(), split.1))
+    } else {
+        Err(anyhow!("Invalid vaulted string"))
+    }
 }
 
 fn do_decrypt(to_decrypt: &str, vault_secret_file: &Path) -> Result<String> {

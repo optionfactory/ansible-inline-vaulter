@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crossterm::event::{self, KeyCode};
-use log::{error, warn};
+use log::warn;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Color, Modifier, Stylize};
 use ratatui::text::{Line, Span};
@@ -8,10 +8,9 @@ use ratatui::widgets::{List, ListState};
 use ratatui::Frame;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::process::exit;
 
 pub trait ListSelector {
-    fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Option<PathBuf>;
+    fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Result<Option<PathBuf>>;
 }
 
 pub struct TuiListSelector {}
@@ -23,20 +22,17 @@ impl TuiListSelector {
 }
 
 impl ListSelector for TuiListSelector {
-    fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Option<PathBuf> {
+    fn select_one(&self, files: BTreeMap<String, PathBuf>) -> Result<Option<PathBuf>> {
         if files.is_empty() {
             warn!("Could not find any file");
-            return None;
+            return Ok(None);
         }
 
         if files.len() == 1 {
-            return Some(files.values().next().unwrap().clone());
+            return Ok(Some(files.values().next().unwrap().clone()));
         }
 
-        Self::tui(&files).unwrap_or_else(|e| {
-            error!("Error in Terminal UI: {}", e);
-            exit(1);
-        })
+        Self::tui(&files)
     }
 }
 
@@ -61,10 +57,7 @@ impl TuiListSelector {
                 }
             }
         })
-        .map(|s| match s {
-            Some(i) => Some(files.values().nth(i).unwrap().clone()),
-            None => None,
-        })
+        .map(|s| s.map(|i| files.values().nth(i).unwrap().clone()))
     }
 
     fn render(frame: &mut Frame, list_state: &mut ListState, items: Vec<String>) {

@@ -5,7 +5,6 @@ use log::{error, warn};
 use regex::Regex;
 use serde_yaml_ng::value::{Tag, TaggedValue};
 use serde_yaml_ng::{Mapping, Value};
-use std::process::exit;
 
 pub struct PropertiesVisitor {
     encryption: Box<dyn Encryption>,
@@ -59,7 +58,7 @@ impl PropertiesVisitor {
                             Ok(res) => Value::String(res),
                             Err(err) => {
                                 error!("Error unvaulting '{str:?}': {err:?}");
-                                exit(1);
+                                Value::String(str.clone())
                             }
                         }
                     }
@@ -111,7 +110,7 @@ impl PropertiesVisitor {
                     }
                     Err(err) => {
                         error!("Error vaulting '{str:?}': {err:?}");
-                        exit(1);
+                        Value::String(String::from("<Vaulting_error>"))
                     }
                 }
             }

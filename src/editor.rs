@@ -1,8 +1,7 @@
 use crate::properties_visitor::PropertiesVisitor;
 use colored::Colorize;
-use log::error;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command};
+use std::process::Command;
 use std::{env, fs};
 
 use anyhow::{anyhow, Result};
@@ -29,8 +28,7 @@ impl Editor {
         match self.visitor.visit_unvaulting(&content) {
             Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
             Ok(res) => {
-                serde_yaml_ng::to_string(&res)
-                    .unwrap()
+                serde_yaml_ng::to_string(&res)?
                     .split('\n')
                     .for_each(|l| {
                         if self.color && l.contains("<vaulted>") {
@@ -66,16 +64,13 @@ impl Editor {
                 }
 
                 match self.visitor.visit_vaulting(&modified_content) {
-                    Err(err) => {
-                        error!("Error parsing new file: {:?}", err);
-                        exit(1);
-                    }
+                    Err(err) => Err(anyhow!("Error parsing new file: {:?}", err)),
                     Ok(res) => {
                         let vaulted = serde_yaml_ng::to_string(&res)?;
                         fs::write(&path, vaulted)?;
+                        Ok(())
                     }
                 }
-                Ok(())
             }
         }
     }
