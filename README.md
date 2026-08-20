@@ -112,3 +112,7 @@ password: !vault |
   6363616232653663320a636433663731383038356438366531373639393536656139353663313864
   3064
 ```
+
+## Known issues/bugs
+
+- When a file is edited, key order, YAML comments, and custom formatting are not preserved. 
