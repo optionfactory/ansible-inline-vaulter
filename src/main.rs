@@ -86,10 +86,10 @@ fn main() {
     let mode = args.edit.is_some();
     let editor = Editor::new(visitor, args.edit.flatten(), args.color);
     if mode {
-        editor.edit(secrets_file).expect("Error editing properties");
+        editor.edit(&secrets_file).expect("Error editing properties");
     } else {
         editor
-            .print(secrets_file)
+            .print(&secrets_file)
             .expect("Error printing properties");
     }
 }

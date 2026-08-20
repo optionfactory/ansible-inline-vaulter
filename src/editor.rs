@@ -1,6 +1,6 @@
 use crate::properties_visitor::PropertiesVisitor;
 use colored::Colorize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::{env, fs};
 
@@ -22,28 +22,26 @@ impl Editor {
         }
     }
 
-    pub fn print(&self, path: PathBuf) -> Result<()> {
+    pub fn print(&self, path: &Path) -> Result<()> {
         println!("-----{}-----", path.display());
         let content = fs::read_to_string(&path)?;
         match self.visitor.visit_unvaulting(&content) {
             Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
             Ok(res) => {
-                serde_yaml_ng::to_string(&res)?
-                    .split('\n')
-                    .for_each(|l| {
-                        if self.color && l.contains("<vaulted>") {
-                            let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
-                            println!("{}{}", split[0], split[1].color("green"))
-                        } else {
-                            println!("{}", l)
-                        }
-                    });
+                serde_yaml_ng::to_string(&res)?.lines().for_each(|l| {
+                    if self.color && l.contains("<vaulted>") {
+                        let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
+                        println!("{}{}", split[0], split[1].color("green"))
+                    } else {
+                        println!("{}", l)
+                    }
+                });
                 Ok(())
             }
         }
     }
 
-    pub fn edit(&self, path: PathBuf) -> Result<()> {
+    pub fn edit(&self, path: &Path) -> Result<()> {
         let content = fs::read_to_string(&path)?;
         match self.visitor.visit_unvaulting(&content) {
             Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
