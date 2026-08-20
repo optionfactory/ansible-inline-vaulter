@@ -68,7 +68,6 @@ dependencies = [
  "clap-verbosity-flag",
  "colored",
  "crossterm",
- "lazy_static",
  "log",
  "log4rs",
  "ratatui",

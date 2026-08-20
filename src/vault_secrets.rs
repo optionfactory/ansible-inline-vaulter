@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
 use log::debug;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 pub struct VaultSecrets {
     no_id: Option<PathBuf>,
@@ -53,10 +53,8 @@ impl VaultSecrets {
     }
 }
 
-lazy_static! {
-    static ref PASSWORD_FILE_REGEX: Regex =
-        Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap();
-}
+static PASSWORD_FILE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap());
 
 fn parse_no_id(cfg: &str) -> Option<String> {
     PASSWORD_FILE_REGEX.captures(cfg)?.name("file").map(|m| {
@@ -66,10 +64,8 @@ fn parse_no_id(cfg: &str) -> Option<String> {
     })
 }
 
-lazy_static! {
-    static ref IDENTITY_LIST_REGEX: Regex =
-        Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap();
-}
+static IDENTITY_LIST_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap());
 
 fn parse_ids(cfg: &str) -> HashMap<String, String> {
     match IDENTITY_LIST_REGEX.captures(cfg) {
@@ -81,14 +77,13 @@ fn parse_ids(cfg: &str) -> HashMap<String, String> {
             let split_commas = ids.split(',').collect::<Vec<&str>>();
             split_commas
                 .iter()
-                .map(|&s| {
+                .filter_map(|&s| {
                     if let Some((label, path)) = s.split_once('@') {
                         Some((label.to_owned(), path.to_owned()))
                     } else {
                         None
                     }
                 })
-                .flat_map(|x| x)
                 .collect()
         }
     }
@@ -178,9 +173,7 @@ retries = 2
 [defaults]
 vault_identity_list = asd@~/.vault/@asd
 "#;
-        let exp = HashMap::from([
-            (String::from("asd"), String::from("~/.vault/@asd")),
-        ]);
+        let exp = HashMap::from([(String::from("asd"), String::from("~/.vault/@asd"))]);
 
         let act = parse_ids(cfg);
 

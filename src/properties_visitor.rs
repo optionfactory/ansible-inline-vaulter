@@ -1,10 +1,10 @@
 use crate::vault_encryption::Encryption;
 use anyhow::Result;
-use lazy_static::lazy_static;
 use log::{error, warn};
 use regex::Regex;
 use serde_yaml_ng::value::{Tag, TaggedValue};
 use serde_yaml_ng::{Mapping, Value};
+use std::sync::LazyLock;
 
 pub struct PropertiesVisitor {
     encryption: Box<dyn Encryption>,
@@ -150,9 +150,8 @@ fn extract_vault_id_vaulting(no_prefix: &'_ str) -> Option<IdProperty<'_>> {
     maybe_id
 }
 
-lazy_static! {
-    static ref ID_REG: Regex = Regex::new(r"\$ANSIBLE_VAULT;.+;.+;(?<id>.*?)\n").unwrap();
-}
+static ID_REG: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\$ANSIBLE_VAULT;.+;.+;(?<id>.*?)\n").unwrap());
 
 fn extract_vault_id_unvaulting(value: &str) -> Option<String> {
     let capture = ID_REG.captures(value)?.name("id").map(|m| m.as_str())?;
