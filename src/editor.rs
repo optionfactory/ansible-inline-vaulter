@@ -30,8 +30,9 @@ impl Editor {
             Ok(res) => {
                 serde_yaml_ng::to_string(&res)?.lines().for_each(|l| {
                     if self.color && l.contains("<vaulted>") {
-                        let split: Vec<&str> = l.split_inclusive("<vaulted>").collect();
-                        println!("{}{}", split[0], split[1].color("green"))
+                        if let Some((prefix, secret)) = l.split_once("<vaulted>") {
+                            println!("{}<vaulted>{}", prefix, secret.color("green"))
+                        }
                     } else {
                         println!("{}", l)
                     }
