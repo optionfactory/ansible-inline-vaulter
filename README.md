@@ -117,3 +117,7 @@ password: !vault |
 
 - When a file is edited, key order, YAML comments, and custom formatting are not preserved.
 - Parsing of ansible.cfg is lackluster.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 – see the [LICENSE](LICENSE) file for details.
