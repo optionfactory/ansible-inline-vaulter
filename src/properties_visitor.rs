@@ -63,7 +63,7 @@ impl PropertiesVisitor {
                         }
                     }
                     _ => {
-                        warn!("'{:?}' is not a string value, what is it?", &t.value);
+                        warn!("'{:?}' is not a string value, what is it?", t.value);
                         val.clone()
                     }
                 }

@@ -54,7 +54,7 @@ impl VaultSecrets {
 }
 
 static PASSWORD_FILE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"vault_password_file ?= ?(?<file>.*)").unwrap());
+    LazyLock::new(|| Regex::new(r"vault_password_file ?= ?(?<file>.*)[#;]?").unwrap());
 
 fn parse_no_id(cfg: &str) -> Option<String> {
     PASSWORD_FILE_REGEX.captures(cfg)?.name("file").map(|m| {
@@ -65,7 +65,7 @@ fn parse_no_id(cfg: &str) -> Option<String> {
 }
 
 static IDENTITY_LIST_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)").unwrap());
+    LazyLock::new(|| Regex::new(r"vault_identity_list ?= ?(?<file_list>.*)[#;]?").unwrap());
 
 fn parse_ids(cfg: &str) -> HashMap<String, String> {
     match IDENTITY_LIST_REGEX.captures(cfg) {
@@ -79,7 +79,7 @@ fn parse_ids(cfg: &str) -> HashMap<String, String> {
                 .iter()
                 .filter_map(|&s| {
                     if let Some((label, path)) = s.split_once('@') {
-                        Some((label.to_owned(), path.to_owned()))
+                        Some((label.trim().to_owned(), path.to_owned()))
                     } else {
                         None
                     }
@@ -148,7 +148,7 @@ vault_identity_list = asd@~/.vault/asd,qwerty@~/.vault/qwerty
     }
 
     #[test]
-    fn test_ids_malformed() {
+    fn test_parse_malformed_identity() {
         let cfg = r#"
 [ssh_connection]
 pipelining = True
@@ -161,6 +161,18 @@ vault_identity_list = asd
         let act = parse_ids(cfg);
 
         assert!(act.is_empty());
+    }
+
+    #[test]
+    fn test_parse_malformed_identities() {
+        let cfg = r#"
+[defaults]
+vault_identity_list = invalid_entry_without_at, valid@~/.vault/valid
+"#;
+        let exp = HashMap::from([(String::from("valid"), String::from("~/.vault/valid"))]);
+        let act = parse_ids(cfg);
+        assert_eq!(1, act.len());
+        assert_eq!(exp, act);
     }
 
     #[test]
@@ -195,3 +207,4 @@ retries = 2
         assert!(act.is_empty())
     }
 }
+

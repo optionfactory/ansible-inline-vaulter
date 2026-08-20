@@ -115,4 +115,5 @@ password: !vault |
 
 ## Known issues/bugs
 
-- When a file is edited, key order, YAML comments, and custom formatting are not preserved. 
+- When a file is edited, key order, YAML comments, and custom formatting are not preserved.
+- Parsing of ansible.cfg is lackluster.
