@@ -4,7 +4,9 @@ use log::error;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 use std::{env, fs};
-use uuid::Uuid;
+
+use anyhow::{anyhow, Result};
+use tempfile::Builder;
 
 pub struct Editor {
     visitor: PropertiesVisitor,
@@ -21,14 +23,11 @@ impl Editor {
         }
     }
 
-    pub fn print(&self, path: PathBuf) {
+    pub fn print(&self, path: PathBuf) -> Result<()> {
         println!("-----{}-----", path.display());
-        let content = fs::read_to_string(&path).unwrap();
+        let content = fs::read_to_string(&path)?;
         match self.visitor.visit_unvaulting(&content) {
-            Err(err) => {
-                error!("Error parsing secrets' file: {:?}", err);
-                exit(1);
-            }
+            Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
             Ok(res) => {
                 serde_yaml_ng::to_string(&res)
                     .unwrap()
@@ -41,30 +40,29 @@ impl Editor {
                             println!("{}", l)
                         }
                     });
+                Ok(())
             }
         }
     }
 
-    pub fn edit(&self, path: PathBuf) {
-        let content = fs::read_to_string(&path).unwrap();
+    pub fn edit(&self, path: PathBuf) -> Result<()> {
+        let content = fs::read_to_string(&path)?;
         match self.visitor.visit_unvaulting(&content) {
-            Err(err) => {
-                error!("Error parsing secrets' file: {:?}", err);
-                exit(1);
-            }
+            Err(err) => Err(anyhow!("Error parsing secrets' file: {:?}", err)),
             Ok(res) => {
-                let properties = serde_yaml_ng::to_string(&res).unwrap();
-                let starting_md5 = md5::compute(&properties);
-                let mut temp = PathBuf::from(format!("/tmp/inline_vaulter/{}", Uuid::new_v4()));
-                let rev_vars_folder = path.iter().rev().take(2).collect::<Vec<_>>();
-                rev_vars_folder.iter().rev().for_each(|rel| temp.push(rel));
-                fs::create_dir_all(temp.parent().unwrap()).unwrap();
-                fs::write(&temp, properties).expect("Could not write file");
-                self.open_in_editor(&temp).expect("Could not open file in editor");
-                let modified_content = fs::read_to_string(&temp).unwrap();
-                let modified_md5 = md5::compute(&modified_content);
-                if starting_md5.eq(&modified_md5) {
-                    return;
+                let properties = serde_yaml_ng::to_string(&res)?;
+
+                let temp_file = Builder::new()
+                    .prefix("inline_vaulter_")
+                    .suffix(".yml")
+                    .tempfile()?;
+
+                fs::write(temp_file.path(), &properties)?;
+                self.open_in_editor(temp_file.path())?;
+                let modified_content = fs::read_to_string(&temp_file)?;
+
+                if properties.trim() == modified_content.trim() {
+                    return Ok(());
                 }
 
                 match self.visitor.visit_vaulting(&modified_content) {
@@ -73,11 +71,11 @@ impl Editor {
                         exit(1);
                     }
                     Ok(res) => {
-                        let vaulted = serde_yaml_ng::to_string(&res).unwrap();
-                        fs::write(&path, vaulted).unwrap();
+                        let vaulted = serde_yaml_ng::to_string(&res)?;
+                        fs::write(&path, vaulted)?;
                     }
                 }
-                fs::remove_file(&temp).unwrap();
+                Ok(())
             }
         }
     }
@@ -94,10 +92,8 @@ impl Editor {
     }
 }
 
-
 fn get_editor(editor_path: Option<String>) -> String {
-    if editor_path.is_some() {
-        let path = editor_path.unwrap();
+    if let Some(path) = editor_path {
         if !path.is_empty() {
             return path;
         }
